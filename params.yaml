@@ -1,0 +1,26 @@
+data_split:
+  test_size: 0.2
+  random_state: 42
+
+model:
+  name: "RandomForestRegressor"
+  params:
+    n_estimators: 100
+    max_depth: 10
+    min_samples_split: 2
+    min_samples_leaf: 1
+    random_state: 42
+
+target_column: "aqi"
+feature_columns:
+  - "pm25"
+  - "pm10"
+  - "no2"
+  - "o3"
+  - "so2"
+  - "co"
+
+metrics:
+  - "rmse"
+  - "mae"
+  - "r2" 
