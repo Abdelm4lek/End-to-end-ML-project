@@ -27,3 +27,12 @@ class DataTransformationConfig:
 
 
 
+@dataclass(frozen=True)
+class ModelTrainerConfig:
+    root_dir: Path
+    train_data_path: Path
+    test_data_path: Path
+    model_name: str
+    param1: float
+    param2: float
+    target_column: str

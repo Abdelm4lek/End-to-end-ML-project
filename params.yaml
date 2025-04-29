@@ -1,1 +1,3 @@
-artifacts_root: artifacts
+model_params:
+  param1
+  param2
