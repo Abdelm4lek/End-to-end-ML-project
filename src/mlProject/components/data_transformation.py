@@ -81,7 +81,7 @@ class DataTransformation:
         return df
     
 
-    def create_station_mapping(self, df):
+    def create_station_mapping(self, df: pl.DataFrame) -> pl.DataFrame:
         """
         Creates a station mapping (station_id <=> station_name) for the dataframe.
         """
@@ -95,11 +95,10 @@ class DataTransformation:
         
 
 
-    def create_lagged_features(self, df):
+    def create_lagged_features(self, df: pl.DataFrame) -> pl.DataFrame:
         """
         Creates lagged features for the dataframe.
         """
-
         station_mapping = self.create_station_mapping(df)
 
         # Add station IDs to original dataframe by joining on station_name
@@ -158,24 +157,27 @@ class DataTransformation:
                 station_lag_dfs.append(station_with_lags)
         
         # Concatenate all station_lag_dfs vertically to form the final df
-        lags_df = pl.concat(station_lag_dfs)
+        lags_df = pl.concat(station_lag_dfs).sort(["date", "hour"])
 
         logger.info(f"Created lagged features dataframe. Shape: {lags_df.shape}")
         
 
         return lags_df
-        
 
-    def split_train_test(self, df):
 
-        # Split the data into training and test sets. (0.75, 0.25) split.
-        train, test = train_test_split(df)
 
+    def split_train_test(self, df, split_ratio=0.95):
+        # Define the split index
+        split_index = int(len(df) * split_ratio)
+
+        # split data temporally
+        train = df[:split_index]
+        test = df[split_index:]
+
+        # save to csv files annd store them in the given dir
         train.write_csv(os.path.join(self.TransformationConfig.root_dir, "train.csv"))
         test.write_csv(os.path.join(self.TransformationConfig.root_dir, "test.csv"))
 
         logger.info("Data split into training and test sets")
-
         print("train.shape", train.shape)
         print("test.shape", test.shape)
-        
