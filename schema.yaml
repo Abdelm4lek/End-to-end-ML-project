@@ -1,8 +1,11 @@
 COLUMNS:
-    'datetime': String,
-    'capacity': Int64,
-    'available_mechanical': Int64,
-    'available_electrical': Int64,
-    'station_name': String,
-    'station_geo': String,
-    'operative': Boolean
+    datetime: String,
+    capacity: Int64,
+    available_mechanical: Int64,
+    available_electrical: Int64,
+    station_name: String,
+    station_geo: String,
+    operative: Boolean
+
+TARGET_COLUMN:
+  name: total_available
