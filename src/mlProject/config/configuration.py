@@ -67,8 +67,8 @@ class ConfigurationManager:
 
     def get_model_trainer_config(self) -> ModelTrainerConfig:
         config = self.config.model_trainer
-        params = self.params.model_params
-        schema =  self.schema.TARGET_COLUMN
+        params = self.params.LightGBM
+        target =  self.schema.TARGET_COLUMN
 
         create_dirs([config.root_dir])
 
@@ -77,10 +77,14 @@ class ConfigurationManager:
             train_data_path = config.train_data_path,
             test_data_path = config.test_data_path,
             model_name = config.model_name,
-            param1 = params.param1,
-            param2 = params.param2,
-            target_column = schema.name
-            
+            objective = params.objective,
+            metric = params.metric,
+            boosting_type = params.boosting_type,
+            num_leaves = params.num_leaves,
+            learning_rate = params.learning_rate,
+            feature_fraction = params.feature_fraction,
+            n_estimators = params.n_estimators,
+            target_column = target.name
         )
 
         return model_trainer_config

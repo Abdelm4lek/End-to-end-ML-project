@@ -27,12 +27,18 @@ class DataTransformationConfig:
 
 
 
+
 @dataclass(frozen=True)
 class ModelTrainerConfig:
     root_dir: Path
     train_data_path: Path
     test_data_path: Path
     model_name: str
-    param1: float
-    param2: float
+    objective: str
+    metric: str           
+    boosting_type: str
+    num_leaves: int
+    learning_rate: float
+    feature_fraction: float
+    n_estimators: int
     target_column: str
