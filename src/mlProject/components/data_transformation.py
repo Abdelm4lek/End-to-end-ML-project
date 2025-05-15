@@ -24,8 +24,11 @@ class DataTransformation:
         Returns:
             pl.DataFrame: Preprocessed Velib dataframe with additional columns
         """
-
+        # read data
         df = pl.read_csv(self.ValidationConfig.unzip_data_dir)
+
+        # filter out non-operative stations
+        df = df.filter(pl.col("operative") == True)
 
         # parse datetime column and extract date and time
         df = df.with_columns(
