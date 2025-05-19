@@ -2,14 +2,13 @@ import os
 from mlProject import logger
 import polars as pl
 from sklearn.model_selection import train_test_split
-from mlProject.entity.config_entity import (DataValidationConfig, DataTransformationConfig)
+from mlProject.entity.config_entity import DataTransformationConfig
 
 
 
 class DataTransformation:
-    def __init__(self, ValidationConfig: DataValidationConfig, TransformationConfig: DataTransformationConfig):
-        self.ValidationConfig = ValidationConfig
-        self.TransformationConfig = TransformationConfig
+    def __init__(self, config: DataTransformationConfig):
+        self.TransformationConfig = config
 
     def preprocess_data(self) -> pl.DataFrame:
         """
@@ -25,7 +24,7 @@ class DataTransformation:
             pl.DataFrame: Preprocessed Velib dataframe with additional columns
         """
         # read data
-        df = pl.read_csv(self.ValidationConfig.unzip_data_dir)
+        df = pl.read_csv(self.TransformationConfig.data_path)
 
         # filter out non-operative stations
         df = df.filter(pl.col("operative") == True)

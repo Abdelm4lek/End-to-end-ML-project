@@ -23,7 +23,7 @@ class DataTransformationTrainingPipeline:
                 data_transformation_config = config.get_data_transformation_config()
                 data_transformation = DataTransformation(config=data_transformation_config)
                 peprocessed_df = data_transformation.preprocess_data()
-                lags_df = data_transformation.create_lags(peprocessed_df)
+                lags_df = data_transformation.create_lagged_features(peprocessed_df)
                 data_transformation.split_train_test(lags_df)
 
                 del peprocessed_df, lags_df
