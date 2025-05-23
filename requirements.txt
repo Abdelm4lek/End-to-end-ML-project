@@ -1,4 +1,6 @@
 pandas 
+plotly
+streamlit
 mlflow
 notebook
 numpy
@@ -10,6 +12,4 @@ tqdm
 ensure
 joblib
 types-PyYAML
-Flask
-Flask-Cors
 -e .
