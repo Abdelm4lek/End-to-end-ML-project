@@ -11,5 +11,6 @@ pyYAML
 tqdm
 ensure
 joblib
+schedule
 types-PyYAML
 -e .
