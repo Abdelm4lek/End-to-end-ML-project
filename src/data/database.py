@@ -2,112 +2,281 @@ import sqlite3
 import pandas as pd
 from datetime import datetime, timedelta
 import logging
+import os
+from dotenv import load_dotenv
+import psycopg2
+from psycopg2 import pool
+
+# Load environment variables (only in development)
+if os.getenv('ENVIRONMENT') != 'production':
+    load_dotenv('DB_credentials.env')
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class VelibDatabase:
-    def __init__(self, db_path='velib_data.db'):
-        self.db_path = db_path
-        self._create_tables()
+    def __init__(self, db_type=None):
+        self.db_type = db_type or os.getenv('DB_TYPE', 'sqlite')
+        self._validate_environment()
+        
+        if self.db_type == 'postgres':
+            self._init_postgres_pool()
+        else:
+            self.db_path = os.getenv('SQLITE_DB_PATH', 'velib_data.db')
+            self._create_tables()
+    
+    def _validate_environment(self):
+        """Validate that all required environment variables are set"""
+        if self.db_type == 'postgres':
+            required_vars = ['DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD']
+            missing_vars = [var for var in required_vars if not os.getenv(var)]
+            
+            if missing_vars:
+                raise ValueError(
+                    f"Missing required environment variables for PostgreSQL: {', '.join(missing_vars)}. "
+                    "Please set these variables in your environment or .env file."
+                )
+    
+    def _init_postgres_pool(self):
+        """Initialize PostgreSQL connection pool"""
+        try:
+            self.pool = psycopg2.pool.SimpleConnectionPool(
+                minconn=1,
+                maxconn=10,
+                host=os.getenv('DB_HOST'),
+                database=os.getenv('DB_NAME'),
+                user=os.getenv('DB_USER'),
+                password=os.getenv('DB_PASSWORD'),
+                port=os.getenv('DB_PORT', '5432'),
+                sslmode='require' if os.getenv('DB_SSL', 'true').lower() == 'true' else 'disable'
+            )
+            self._create_tables()
+            logger.info("Successfully initialized PostgreSQL connection pool")
+        except Exception as e:
+            logger.error(f"Error initializing PostgreSQL pool: {str(e)}")
+            raise
+    
+    def _get_connection(self):
+        """Get a database connection based on the configured type"""
+        if self.db_type == 'postgres':
+            return self.pool.getconn()
+        else:
+            return sqlite3.connect(self.db_path)
+    
+    def _release_connection(self, conn):
+        """Release a database connection"""
+        if self.db_type == 'postgres':
+            self.pool.putconn(conn)
+        else:
+            conn.close()
     
     def _create_tables(self):
         """Create necessary tables if they don't exist"""
-        with sqlite3.connect(self.db_path) as conn:
+        conn = self._get_connection()
+        try:
             cursor = conn.cursor()
             
-            # Create stations table for static information
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS stations (
-                    station_id INTEGER PRIMARY KEY,
-                    name TEXT,
-                    lat REAL,
-                    lon REAL,
-                    capacity INTEGER,
-                    last_updated TIMESTAMP
-                )
-            ''')
-            
-            # Create hourly observations table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS hourly_observations (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    station_id INTEGER,
-                    timestamp TIMESTAMP,
-                    num_bikes_available INTEGER,
-                    num_docks_available INTEGER,
-                    is_renting BOOLEAN,
-                    FOREIGN KEY (station_id) REFERENCES stations(station_id)
-                )
-            ''')
+            if self.db_type == 'postgres':
+                # Create stations table for static information
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS stations (
+                        station_id TEXT PRIMARY KEY,
+                        name TEXT,
+                        lat REAL,
+                        lon REAL,
+                        capacity INTEGER,
+                        last_updated TIMESTAMP
+                    )
+                ''')
+                
+                # Create hourly observations table with new structure
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS hourly_observations (
+                        id SERIAL PRIMARY KEY,
+                        datetime TIMESTAMP,
+                        capacity INTEGER,
+                        available_mechanical INTEGER,
+                        available_electrical INTEGER,
+                        station_name TEXT,
+                        station_geo JSONB,
+                        operative BOOLEAN
+                    )
+                ''')
+            else:
+                # SQLite tables
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS stations (
+                        station_id TEXT PRIMARY KEY,
+                        name TEXT,
+                        lat REAL,
+                        lon REAL,
+                        capacity INTEGER,
+                        last_updated TIMESTAMP
+                    )
+                ''')
+                
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS hourly_observations (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        datetime TIMESTAMP,
+                        capacity INTEGER,
+                        available_mechanical INTEGER,
+                        available_electrical INTEGER,
+                        station_name TEXT,
+                        station_geo TEXT,
+                        operative BOOLEAN
+                    )
+                ''')
             
             conn.commit()
+        except Exception as e:
+            logger.error(f"Error creating tables: {str(e)}")
+            raise
+        finally:
+            self._release_connection(conn)
     
     def store_station_info(self, stations_df):
         """Store or update station information"""
+        conn = self._get_connection()
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                stations_df['last_updated'] = datetime.now()
+            stations_df['last_updated'] = datetime.now()
+            if self.db_type == 'postgres':
+                # Log the data types and first few rows
+                logger.info(f"DataFrame columns: {stations_df.dtypes}")
+                logger.info(f"First row of data: {stations_df.iloc[0].to_dict()}")
+                
+                # Ensure station_id is string to handle large numbers
+                stations_df['station_id'] = stations_df['station_id'].astype(str)
+                
+                # Convert DataFrame to list of tuples for PostgreSQL
+                data = [tuple(x) for x in stations_df[['station_id', 'name', 'lat', 'lon', 'capacity', 'last_updated']].to_numpy()]
+                cursor = conn.cursor()
+                cursor.executemany("""
+                    INSERT INTO stations (station_id, name, lat, lon, capacity, last_updated)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (station_id) DO UPDATE
+                    SET name = EXCLUDED.name,
+                        lat = EXCLUDED.lat,
+                        lon = EXCLUDED.lon,
+                        capacity = EXCLUDED.capacity,
+                        last_updated = EXCLUDED.last_updated
+                """, data)
+            else:
                 stations_df.to_sql('stations', conn, if_exists='replace', index=False)
-                logger.info(f"Stored information for {len(stations_df)} stations")
+            
+            conn.commit()
+            logger.info(f"Stored information for {len(stations_df)} stations")
         except Exception as e:
             logger.error(f"Error storing station info: {str(e)}")
+            logger.error(f"Error type: {type(e)}")
+            raise
+        finally:
+            self._release_connection(conn)
     
     def store_hourly_observations(self, observations_df):
         """Store hourly observations for all stations"""
+        conn = self._get_connection()
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                observations_df['timestamp'] = datetime.now()
+            observations_df['timestamp'] = datetime.now()
+            if self.db_type == 'postgres':
+                # Convert DataFrame to list of tuples for PostgreSQL
+                data = [tuple(x) for x in observations_df.to_numpy()]
+                cursor = conn.cursor()
+                cursor.executemany("""
+                    INSERT INTO hourly_observations 
+                    (station_id, timestamp, num_bikes_available, num_docks_available, is_renting)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, data)
+            else:
                 observations_df.to_sql('hourly_observations', conn, if_exists='append', index=False)
-                logger.info(f"Stored hourly observations for {len(observations_df)} stations")
+            
+            conn.commit()
+            logger.info(f"Stored hourly observations for {len(observations_df)} stations")
         except Exception as e:
             logger.error(f"Error storing hourly observations: {str(e)}")
+            raise
+        finally:
+            self._release_connection(conn)
     
     def get_last_24h_data(self, station_id):
         """Retrieve last 24 hours of data for a specific station"""
+        conn = self._get_connection()
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                query = """
-                SELECT h.*, s.name, s.lat, s.lon, s.capacity
-                FROM hourly_observations h
-                JOIN stations s ON h.station_id = s.station_id
-                WHERE h.station_id = ?
-                AND h.timestamp >= datetime('now', '-24 hours')
-                ORDER BY h.timestamp ASC
-                """
-                df = pd.read_sql_query(query, conn, params=(station_id,))
-                return df
+            query = """
+            SELECT h.*, s.name, s.lat, s.lon, s.capacity
+            FROM hourly_observations h
+            JOIN stations s ON h.station_id = s.station_id
+            WHERE h.station_id = %s
+            AND h.timestamp >= NOW() - INTERVAL '24 hours'
+            ORDER BY h.timestamp ASC
+            """ if self.db_type == 'postgres' else """
+            SELECT h.*, s.name, s.lat, s.lon, s.capacity
+            FROM hourly_observations h
+            JOIN stations s ON h.station_id = s.station_id
+            WHERE h.station_id = ?
+            AND h.timestamp >= datetime('now', '-24 hours')
+            ORDER BY h.timestamp ASC
+            """
+            
+            df = pd.read_sql_query(query, conn, params=(station_id,))
+            return df
         except Exception as e:
             logger.error(f"Error retrieving data for station {station_id}: {str(e)}")
             return None
+        finally:
+            self._release_connection(conn)
     
     def get_all_stations_last_24h(self):
         """Retrieve last 24 hours of data for all stations"""
+        conn = self._get_connection()
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                query = """
-                SELECT h.*, s.name, s.lat, s.lon, s.capacity
-                FROM hourly_observations h
-                JOIN stations s ON h.station_id = s.station_id
-                WHERE h.timestamp >= datetime('now', '-24 hours')
-                ORDER BY h.station_id, h.timestamp ASC
-                """
-                df = pd.read_sql_query(query, conn)
-                return df
+            query = """
+            SELECT h.*, s.name, s.lat, s.lon, s.capacity
+            FROM hourly_observations h
+            JOIN stations s ON h.station_id = s.station_id
+            WHERE h.timestamp >= NOW() - INTERVAL '24 hours'
+            ORDER BY h.station_id, h.timestamp ASC
+            """ if self.db_type == 'postgres' else """
+            SELECT h.*, s.name, s.lat, s.lon, s.capacity
+            FROM hourly_observations h
+            JOIN stations s ON h.station_id = s.station_id
+            WHERE h.timestamp >= datetime('now', '-24 hours')
+            ORDER BY h.station_id, h.timestamp ASC
+            """
+            
+            df = pd.read_sql_query(query, conn)
+            return df
         except Exception as e:
             logger.error(f"Error retrieving all stations data: {str(e)}")
             return None
+        finally:
+            self._release_connection(conn)
     
     def cleanup_old_data(self, days_to_keep=30):
         """Remove data older than specified days"""
+        conn = self._get_connection()
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
+            cursor = conn.cursor()
+            if self.db_type == 'postgres':
+                cursor.execute("""
+                    DELETE FROM hourly_observations 
+                    WHERE timestamp < NOW() - INTERVAL '%s days'
+                """, (days_to_keep,))
+            else:
                 cursor.execute("""
                     DELETE FROM hourly_observations 
                     WHERE timestamp < datetime('now', '-? days')
                 """, (days_to_keep,))
-                conn.commit()
-                logger.info(f"Cleaned up data older than {days_to_keep} days")
+            
+            conn.commit()
+            logger.info(f"Cleaned up data older than {days_to_keep} days")
         except Exception as e:
-            logger.error(f"Error cleaning up old data: {str(e)}") 
+            logger.error(f"Error cleaning up old data: {str(e)}")
+            raise
+        finally:
+            self._release_connection(conn)
+    
+    def __del__(self):
+        """Cleanup connection pool when object is destroyed"""
+        if hasattr(self, 'pool'):
+            self.pool.closeall() 

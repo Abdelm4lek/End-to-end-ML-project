@@ -6,6 +6,8 @@ notebook
 numpy
 scikit-learn
 matplotlib
+psycopg2
+dotenv
 python-box
 pyYAML
 tqdm
