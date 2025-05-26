@@ -6,8 +6,13 @@ from datetime import datetime
 from data.database import VelibDatabase
 import logging
 import json
+import os
 
-logging.basicConfig(level=logging.INFO)
+# Configuration du logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 class VelibDataCollector:
@@ -19,6 +24,10 @@ class VelibDataCollector:
     def preprocess_station_data(self, stations_df, status_df):
         """Transform raw data into desired structure"""
         try:
+            # Ensure both DataFrames have station_id as string
+            stations_df['station_id'] = stations_df['station_id'].astype(str)
+            status_df['station_id'] = status_df['station_id'].astype(str)
+            
             # Merge station info and status
             merged_df = pd.merge(
                 stations_df,
@@ -46,6 +55,16 @@ class VelibDataCollector:
                 'operative': merged_df['is_renting'] & merged_df['is_installed']
             })
             
+            # Ensure all columns have the correct data types
+            processed_df = processed_df.astype({
+                'capacity': 'int32',
+                'available_mechanical': 'int32',
+                'available_electrical': 'int32',
+                'station_name': 'str',
+                'station_geo': 'str',
+                'operative': 'bool'
+            })
+            
             return processed_df
         except Exception as e:
             logger.error(f"Error preprocessing data: {str(e)}")
@@ -56,7 +75,8 @@ class VelibDataCollector:
         try:
             response = requests.get(self.station_info_url)
             data = response.json()
-            stations_df = pd.DataFrame(data['data']['stations'])
+            # Convert station_id to string when creating DataFrame
+            stations_df = pd.DataFrame(data['data']['stations']).astype({'station_id': str})
             self.db.store_station_info(stations_df)
             logger.info("Successfully updated station information")
             return stations_df
@@ -69,7 +89,8 @@ class VelibDataCollector:
         try:
             response = requests.get(self.station_status_url)
             data = response.json()
-            status_df = pd.DataFrame(data['data']['stations'])
+            # Convert station_id to string when creating DataFrame
+            status_df = pd.DataFrame(data['data']['stations']).astype({'station_id': str})
             return status_df
         except Exception as e:
             logger.error(f"Error fetching station status: {str(e)}")
@@ -92,6 +113,7 @@ class VelibDataCollector:
             
             # Clean up data older than 30 days
             self.db.cleanup_old_data(days_to_keep=30)
+
         except Exception as e:
             logger.error(f"Error in data collection: {str(e)}")
 

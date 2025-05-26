@@ -7,9 +7,8 @@ from dotenv import load_dotenv
 import psycopg2
 from psycopg2 import pool
 
-# Load environment variables (only in development)
-if os.getenv('ENVIRONMENT') != 'production':
-    load_dotenv('DB_credentials.env')
+# Load environment variables
+load_dotenv('DB_credentials.env')
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -77,11 +76,14 @@ class VelibDatabase:
             cursor = conn.cursor()
             
             if self.db_type == 'postgres':
+                # Drop existing tables if they exist
+                cursor.execute('DROP TABLE IF EXISTS hourly_observations CASCADE')
+                cursor.execute('DROP TABLE IF EXISTS stations CASCADE')
+                
                 # Create stations table for static information
                 cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS stations (
-                        station_id TEXT PRIMARY KEY,
-                        name TEXT,
+                    CREATE TABLE stations (
+                        name TEXT PRIMARY KEY,
                         lat REAL,
                         lon REAL,
                         capacity INTEGER,
@@ -91,23 +93,25 @@ class VelibDatabase:
                 
                 # Create hourly observations table with new structure
                 cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS hourly_observations (
+                    CREATE TABLE hourly_observations (
                         id SERIAL PRIMARY KEY,
                         datetime TIMESTAMP,
                         capacity INTEGER,
                         available_mechanical INTEGER,
                         available_electrical INTEGER,
-                        station_name TEXT,
+                        station_name TEXT REFERENCES stations(name),
                         station_geo JSONB,
                         operative BOOLEAN
                     )
                 ''')
             else:
                 # SQLite tables
+                cursor.execute('DROP TABLE IF EXISTS hourly_observations')
+                cursor.execute('DROP TABLE IF EXISTS stations')
+                
                 cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS stations (
-                        station_id TEXT PRIMARY KEY,
-                        name TEXT,
+                    CREATE TABLE stations (
+                        name TEXT PRIMARY KEY,
                         lat REAL,
                         lon REAL,
                         capacity INTEGER,
@@ -116,13 +120,13 @@ class VelibDatabase:
                 ''')
                 
                 cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS hourly_observations (
+                    CREATE TABLE hourly_observations (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         datetime TIMESTAMP,
                         capacity INTEGER,
                         available_mechanical INTEGER,
                         available_electrical INTEGER,
-                        station_name TEXT,
+                        station_name TEXT REFERENCES stations(name),
                         station_geo TEXT,
                         operative BOOLEAN
                     )
@@ -141,22 +145,14 @@ class VelibDatabase:
         try:
             stations_df['last_updated'] = datetime.now()
             if self.db_type == 'postgres':
-                # Log the data types and first few rows
-                logger.info(f"DataFrame columns: {stations_df.dtypes}")
-                logger.info(f"First row of data: {stations_df.iloc[0].to_dict()}")
-                
-                # Ensure station_id is string to handle large numbers
-                stations_df['station_id'] = stations_df['station_id'].astype(str)
-                
                 # Convert DataFrame to list of tuples for PostgreSQL
-                data = [tuple(x) for x in stations_df[['station_id', 'name', 'lat', 'lon', 'capacity', 'last_updated']].to_numpy()]
+                data = [tuple(x) for x in stations_df[['name', 'lat', 'lon', 'capacity', 'last_updated']].to_numpy()]
                 cursor = conn.cursor()
                 cursor.executemany("""
-                    INSERT INTO stations (station_id, name, lat, lon, capacity, last_updated)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (station_id) DO UPDATE
-                    SET name = EXCLUDED.name,
-                        lat = EXCLUDED.lat,
+                    INSERT INTO stations (name, lat, lon, capacity, last_updated)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (name) DO UPDATE
+                    SET lat = EXCLUDED.lat,
                         lon = EXCLUDED.lon,
                         capacity = EXCLUDED.capacity,
                         last_updated = EXCLUDED.last_updated
@@ -177,15 +173,17 @@ class VelibDatabase:
         """Store hourly observations for all stations"""
         conn = self._get_connection()
         try:
-            observations_df['timestamp'] = datetime.now()
             if self.db_type == 'postgres':
                 # Convert DataFrame to list of tuples for PostgreSQL
-                data = [tuple(x) for x in observations_df.to_numpy()]
+                data = [tuple(x) for x in observations_df[['datetime', 'capacity', 'available_mechanical', 
+                                                         'available_electrical', 'station_name', 
+                                                         'station_geo', 'operative']].to_numpy()]
                 cursor = conn.cursor()
                 cursor.executemany("""
                     INSERT INTO hourly_observations 
-                    (station_id, timestamp, num_bikes_available, num_docks_available, is_renting)
-                    VALUES (%s, %s, %s, %s, %s)
+                    (datetime, capacity, available_mechanical, available_electrical, 
+                     station_name, station_geo, operative)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """, data)
             else:
                 observations_df.to_sql('hourly_observations', conn, if_exists='append', index=False)
@@ -260,12 +258,12 @@ class VelibDatabase:
             if self.db_type == 'postgres':
                 cursor.execute("""
                     DELETE FROM hourly_observations 
-                    WHERE timestamp < NOW() - INTERVAL '%s days'
+                    WHERE datetime < NOW() - INTERVAL '%s days'
                 """, (days_to_keep,))
             else:
                 cursor.execute("""
                     DELETE FROM hourly_observations 
-                    WHERE timestamp < datetime('now', '-? days')
+                    WHERE datetime < datetime('now', '-? days')
                 """, (days_to_keep,))
             
             conn.commit()
