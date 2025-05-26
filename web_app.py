@@ -17,8 +17,14 @@ st.set_page_config(
     layout="wide"
 )
 
+# Title and description
+st.title("🚲 Velib Station Demand Predictor")
+st.markdown("""
+This application provides real-time predictions for Velib station demand using live data from the Velib API.
+""")
+
 # Initialize database connection
-db = VelibDatabase()
+db = VelibDatabase(db_type='postgres')
 
 # Load the trained model
 @st.cache_resource
@@ -112,7 +118,7 @@ def display_station_data(status_df, info_df, last_updated):
         st.metric("Total Bikes Available", merged_df['num_bikes_available'].sum())
 
     # Create a map visualization
-    st.subheader("Station Locations and Availability")
+    st.subheader("Station Locations and Current Availability")
     
     # Create custom hover template
     hover_template = """
