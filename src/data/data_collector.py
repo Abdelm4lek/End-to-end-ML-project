@@ -28,6 +28,10 @@ class VelibDataCollector:
             stations_df['station_id'] = stations_df['station_id'].astype(str)
             status_df['station_id'] = status_df['station_id'].astype(str)
             
+            # Log station names before processing
+            logger.info(f"Number of stations in station info: {len(stations_df)}")
+            logger.info(f"Number of stations in status: {len(status_df)}")
+            
             # Check for missing stations
             missing_stations = set(status_df['station_id']) - set(stations_df['station_id'])
             if missing_stations:
@@ -43,6 +47,9 @@ class VelibDataCollector:
                 how='inner',  # Changed from 'left' to 'inner' to ensure we only get matching stations
                 suffixes=('', '_status')
             )
+            
+            # Log the number of stations after merge
+            logger.info(f"Number of stations after merge: {len(merged_df)}")
             
             # Convert last_reported timestamp to datetime
             merged_df['last_reported'] = pd.to_datetime(merged_df['last_reported'], unit='s')
@@ -64,6 +71,10 @@ class VelibDataCollector:
                 ),
                 'operative': merged_df['is_renting'] & merged_df['is_installed']
             })
+            
+            # Log unique station names before storing
+            logger.info(f"Number of unique station names in processed data: {processed_df['station_name'].nunique()}")
+            logger.info(f"Sample of station names: {processed_df['station_name'].head().tolist()}")
             
             # Ensure all columns have the correct data types
             processed_df = processed_df.astype({
@@ -87,6 +98,11 @@ class VelibDataCollector:
             data = response.json()
             # Convert station_id to string when creating DataFrame
             stations_df = pd.DataFrame(data['data']['stations']).astype({'station_id': str})
+            
+            # Log station names before storing
+            logger.info(f"Number of stations in API response: {len(stations_df)}")
+            logger.info(f"Sample of station names from API: {stations_df['name'].head().tolist()}")
+            
             self.db.store_station_info(stations_df)
             logger.info("Successfully updated station information")
             return stations_df
@@ -109,23 +125,53 @@ class VelibDataCollector:
     def collect_data(self):
         """Collect both station info and status"""
         try:
-            # Fetch both dataframes
+            # First, fetch and store station information
             stations_df = self.fetch_station_info()
-            status_df = self.fetch_station_status()
+            if stations_df is None:
+                logger.error("Failed to fetch station information")
+                return
             
-            if stations_df is not None and status_df is not None:
-                # Preprocess the data
-                processed_df = self.preprocess_station_data(stations_df, status_df)
-                
-                # Store the processed data
-                self.db.store_hourly_observations(processed_df)
-                logger.info("Successfully stored processed hourly observations")
+            # Verify station information was stored
+            conn = self.db._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*) FROM stations")
+                station_count = cursor.fetchone()[0]
+                logger.info(f"Verified {station_count} stations in database")
+            finally:
+                self.db._release_connection(conn)
+            
+            # Then fetch station status
+            status_df = self.fetch_station_status()
+            if status_df is None:
+                logger.error("Failed to fetch station status")
+                return
+            
+            # Preprocess the data
+            processed_df = self.preprocess_station_data(stations_df, status_df)
+            
+            # Verify all station names exist in the stations table
+            conn = self.db._get_connection()
+            try:
+                cursor = conn.cursor()
+                for station_name in processed_df['station_name'].unique():
+                    cursor.execute("SELECT COUNT(*) FROM stations WHERE name = %s", (station_name,))
+                    if cursor.fetchone()[0] == 0:
+                        logger.error(f"Station name '{station_name}' not found in stations table")
+                        return
+            finally:
+                self.db._release_connection(conn)
+            
+            # Store the processed data
+            self.db.store_hourly_observations(processed_df)
+            logger.info("Successfully stored processed hourly observations")
             
             # Clean up data older than 30 days
             self.db.cleanup_old_data(days_to_keep=30)
 
         except Exception as e:
             logger.error(f"Error in data collection: {str(e)}")
+            raise
 
 def main():
     collector = VelibDataCollector()
