@@ -28,18 +28,28 @@ class VelibDataCollector:
             stations_df['station_id'] = stations_df['station_id'].astype(str)
             status_df['station_id'] = status_df['station_id'].astype(str)
             
+            # Check for missing stations
+            missing_stations = set(status_df['station_id']) - set(stations_df['station_id'])
+            if missing_stations:
+                logger.warning(f"Found {len(missing_stations)} stations in status that are not in station info")
+                # Filter out stations that don't exist in station info
+                status_df = status_df[status_df['station_id'].isin(stations_df['station_id'])]
+            
             # Merge station info and status
             merged_df = pd.merge(
                 stations_df,
                 status_df,
                 on='station_id',
-                how='left',
+                how='inner',  # Changed from 'left' to 'inner' to ensure we only get matching stations
                 suffixes=('', '_status')
             )
             
+            # Convert last_reported timestamp to datetime
+            merged_df['last_reported'] = pd.to_datetime(merged_df['last_reported'], unit='s')
+            
             # Create the new structure
             processed_df = pd.DataFrame({
-                'datetime': datetime.now(),
+                'datetime': merged_df['last_reported'],  # Use API's last_reported timestamp
                 'capacity': merged_df['capacity'],
                 'available_mechanical': merged_df['num_bikes_available_types'].apply(
                     lambda x: x[0]['mechanical'] if isinstance(x, list) and len(x) > 0 else 0
