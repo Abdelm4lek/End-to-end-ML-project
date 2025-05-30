@@ -146,57 +146,43 @@ class VelibDatabase:
             stations_df['last_updated'] = datetime.now()
             
             if self.db_type == 'postgres':
-                # First, get existing stations
                 cursor = conn.cursor()
-                cursor.execute("SELECT name, lat, lon, capacity FROM stations")
-                existing_stations = {row[0]: (row[1], row[2], row[3]) for row in cursor.fetchall()}
-                
-                # Prepare data for insertion/update
-                to_insert = []
-                to_update = []
-                
-                for _, row in stations_df.iterrows():
-                    station_name = row['name']
-                    station_data = (row['lat'], row['lon'], row['capacity'])
-                    
-                    if station_name not in existing_stations:
-                        # New station - insert
-                        to_insert.append((station_name, *station_data, row['last_updated']))
-                    elif existing_stations[station_name] != station_data:
-                        # Existing station with changes - update
-                        to_update.append((*station_data, row['last_updated'], station_name))
-                
-                # Insert new stations
-                if to_insert:
+                # Use ON CONFLICT for upsert (insert or update)
+                data = [tuple(x) for x in stations_df[['name', 'lat', 'lon', 'capacity', 'last_updated']].to_numpy()]
+                try:
                     cursor.executemany("""
                         INSERT INTO stations (name, lat, lon, capacity, last_updated)
                         VALUES (%s, %s, %s, %s, %s)
-                    """, to_insert)
-                    logger.info(f"Inserted {len(to_insert)} new stations")
+                        ON CONFLICT (name) DO UPDATE
+                        SET lat = EXCLUDED.lat,
+                            lon = EXCLUDED.lon,
+                            capacity = EXCLUDED.capacity,
+                            last_updated = EXCLUDED.last_updated
+                    """, data)
+                    logger.info(f"Upserted {len(data)} stations (inserted or updated as needed)")
+                except Exception as e:
+                    logger.error(f"Error upserting stations: {str(e)}")
+                    conn.rollback()
+                    raise
                 
-                # Update changed stations
-                if to_update:
-                    cursor.executemany("""
-                        UPDATE stations 
-                        SET lat = %s, lon = %s, capacity = %s, last_updated = %s
-                        WHERE name = %s
-                    """, to_update)
-                    logger.info(f"Updated {len(to_update)} existing stations")
-                
-                if not to_insert and not to_update:
-                    logger.info("No changes in station information")
-            
+                # Verify final station count
+                cursor.execute("SELECT COUNT(*) FROM stations")
+                final_count = cursor.fetchone()[0]
+                logger.info(f"Total stations in database: {final_count}")
             else:
                 # For SQLite, use pandas to_sql with if_exists='replace'
                 stations_df.to_sql('stations', conn, if_exists='replace', index=False)
             
             conn.commit()
-            logger.info(f"Stored information for {len(stations_df)} stations")
+            logger.info(f"Successfully processed station information")
             
         except Exception as e:
             logger.error(f"Error storing station info: {str(e)}")
             logger.error(f"Error type: {type(e)}")
-            raise
+            try:
+                conn.rollback()
+            except Exception:
+                pass
         finally:
             self._release_connection(conn)
     
