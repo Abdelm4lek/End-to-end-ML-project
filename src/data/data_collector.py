@@ -29,8 +29,8 @@ class VelibDataCollector:
             status_df['station_id'] = status_df['station_id'].astype(str)
             
             # Log station names before processing
-            logger.info(f"Number of stations in station info: {len(stations_df)}")
-            logger.info(f"Number of stations in status: {len(status_df)}")
+            logger.info(f"Number of stations in stations info: {len(stations_df)}")
+            logger.info(f"Number of stations in stations status: {len(status_df)}")
             
             # Check for missing stations
             missing_stations = set(status_df['station_id']) - set(stations_df['station_id'])
@@ -74,7 +74,6 @@ class VelibDataCollector:
             
             # Log unique station names before storing
             logger.info(f"Number of unique station names in processed data: {processed_df['station_name'].nunique()}")
-            logger.info(f"Sample of station names: {processed_df['station_name'].head().tolist()}")
             
             # Ensure all columns have the correct data types
             processed_df = processed_df.astype({
@@ -101,7 +100,6 @@ class VelibDataCollector:
             
             # Log station names before storing
             logger.info(f"Number of stations in API response: {len(stations_df)}")
-            logger.info(f"Sample of station names from API: {stations_df['name'].head().tolist()}")
             
             self.db.store_station_info(stations_df)
             logger.info("Successfully updated station information")
@@ -165,6 +163,16 @@ class VelibDataCollector:
             # Store the processed data
             self.db.store_hourly_observations(processed_df)
             logger.info("Successfully stored processed hourly observations")
+            
+            # Log total number of rows in hourly_observations
+            conn = self.db._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*) FROM hourly_observations")
+                total_rows = cursor.fetchone()[0]
+                logger.info(f"Total number of rows in hourly_observations table: {total_rows}")
+            finally:
+                self.db._release_connection(conn)
             
             # Clean up data older than 30 days
             self.db.cleanup_old_data(days_to_keep=30)

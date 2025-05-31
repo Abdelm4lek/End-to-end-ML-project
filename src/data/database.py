@@ -1,6 +1,5 @@
-import sqlite3
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 import logging
 import os
 from dotenv import load_dotenv
@@ -14,27 +13,20 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class VelibDatabase:
-    def __init__(self, db_type=None):
-        self.db_type = db_type or os.getenv('DB_TYPE', 'sqlite')
+    def __init__(self):
         self._validate_environment()
-        
-        if self.db_type == 'postgres':
-            self._init_postgres_pool()
-        else:
-            self.db_path = os.getenv('SQLITE_DB_PATH', 'velib_data.db')
-            self._create_tables()
+        self._init_postgres_pool()
     
     def _validate_environment(self):
         """Validate that all required environment variables are set"""
-        if self.db_type == 'postgres':
-            required_vars = ['DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD']
-            missing_vars = [var for var in required_vars if not os.getenv(var)]
-            
-            if missing_vars:
-                raise ValueError(
-                    f"Missing required environment variables for PostgreSQL: {', '.join(missing_vars)}. "
-                    "Please set these variables in your environment or .env file."
-                )
+        required_vars = ['DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD']
+        missing_vars = [var for var in required_vars if not os.getenv(var)]
+        
+        if missing_vars:
+            raise ValueError(
+                f"Missing required environment variables for PostgreSQL: {', '.join(missing_vars)}. "
+                "Please set these variables in your environment or .env file."
+            )
     
     def _init_postgres_pool(self):
         """Initialize PostgreSQL connection pool"""
@@ -56,18 +48,12 @@ class VelibDatabase:
             raise
     
     def _get_connection(self):
-        """Get a database connection based on the configured type"""
-        if self.db_type == 'postgres':
-            return self.pool.getconn()
-        else:
-            return sqlite3.connect(self.db_path)
+        """Get a database connection"""
+        return self.pool.getconn()
     
     def _release_connection(self, conn):
         """Release a database connection"""
-        if self.db_type == 'postgres':
-            self.pool.putconn(conn)
-        else:
-            conn.close()
+        self.pool.putconn(conn)
     
     def _create_tables(self):
         """Create necessary tables if they don't exist"""
@@ -75,62 +61,42 @@ class VelibDatabase:
         try:
             cursor = conn.cursor()
             
-            if self.db_type == 'postgres':
-                # Drop existing tables if they exist
-                cursor.execute('DROP TABLE IF EXISTS hourly_observations CASCADE')
-                cursor.execute('DROP TABLE IF EXISTS stations CASCADE')
-                
-                # Create stations table for static information
+            # Create stations table if it doesn't exist
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS stations (
+                    name TEXT PRIMARY KEY,
+                    lat REAL,
+                    lon REAL,
+                    capacity INTEGER,
+                    last_updated TIMESTAMP
+                )
+            ''')
+            
+            # Create hourly observations table if it doesn't exist
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS hourly_observations (
+                    id SERIAL PRIMARY KEY,
+                    datetime TIMESTAMP,
+                    capacity INTEGER,
+                    available_mechanical INTEGER,
+                    available_electrical INTEGER,
+                    station_name TEXT REFERENCES stations(name),
+                    station_geo JSONB,
+                    operative BOOLEAN
+                )
+            ''')
+            
+            # Add unique constraint if it doesn't exist
+            try:
                 cursor.execute('''
-                    CREATE TABLE stations (
-                        name TEXT PRIMARY KEY,
-                        lat REAL,
-                        lon REAL,
-                        capacity INTEGER,
-                        last_updated TIMESTAMP
-                    )
+                    ALTER TABLE hourly_observations 
+                    ADD CONSTRAINT unique_station_datetime 
+                    UNIQUE (datetime, station_name)
                 ''')
-                
-                # Create hourly observations table with new structure
-                cursor.execute('''
-                    CREATE TABLE hourly_observations (
-                        id SERIAL PRIMARY KEY,
-                        datetime TIMESTAMP,
-                        capacity INTEGER,
-                        available_mechanical INTEGER,
-                        available_electrical INTEGER,
-                        station_name TEXT REFERENCES stations(name),
-                        station_geo JSONB,
-                        operative BOOLEAN
-                    )
-                ''')
-            else:
-                # SQLite tables
-                cursor.execute('DROP TABLE IF EXISTS hourly_observations')
-                cursor.execute('DROP TABLE IF EXISTS stations')
-                
-                cursor.execute('''
-                    CREATE TABLE stations (
-                        name TEXT PRIMARY KEY,
-                        lat REAL,
-                        lon REAL,
-                        capacity INTEGER,
-                        last_updated TIMESTAMP
-                    )
-                ''')
-                
-                cursor.execute('''
-                    CREATE TABLE hourly_observations (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        datetime TIMESTAMP,
-                        capacity INTEGER,
-                        available_mechanical INTEGER,
-                        available_electrical INTEGER,
-                        station_name TEXT REFERENCES stations(name),
-                        station_geo TEXT,
-                        operative BOOLEAN
-                    )
-                ''')
+                logger.info("Added unique constraint to hourly_observations table")
+            except Exception as e:
+                # If constraint already exists, this will raise an error which we can ignore
+                logger.info("Unique constraint already exists on hourly_observations table")
             
             conn.commit()
         except Exception as e:
@@ -145,33 +111,29 @@ class VelibDatabase:
         try:
             stations_df['last_updated'] = datetime.now()
             
-            if self.db_type == 'postgres':
-                cursor = conn.cursor()
-                # Use ON CONFLICT for upsert (insert or update)
-                data = [tuple(x) for x in stations_df[['name', 'lat', 'lon', 'capacity', 'last_updated']].to_numpy()]
-                try:
-                    cursor.executemany("""
-                        INSERT INTO stations (name, lat, lon, capacity, last_updated)
-                        VALUES (%s, %s, %s, %s, %s)
-                        ON CONFLICT (name) DO UPDATE
-                        SET lat = EXCLUDED.lat,
-                            lon = EXCLUDED.lon,
-                            capacity = EXCLUDED.capacity,
-                            last_updated = EXCLUDED.last_updated
-                    """, data)
-                    logger.info(f"Upserted {len(data)} stations (inserted or updated as needed)")
-                except Exception as e:
-                    logger.error(f"Error upserting stations: {str(e)}")
-                    conn.rollback()
-                    raise
-                
-                # Verify final station count
-                cursor.execute("SELECT COUNT(*) FROM stations")
-                final_count = cursor.fetchone()[0]
-                logger.info(f"Total stations in database: {final_count}")
-            else:
-                # For SQLite, use pandas to_sql with if_exists='replace'
-                stations_df.to_sql('stations', conn, if_exists='replace', index=False)
+            cursor = conn.cursor()
+            # Use ON CONFLICT for upsert (insert or update)
+            data = [tuple(x) for x in stations_df[['name', 'lat', 'lon', 'capacity', 'last_updated']].to_numpy()]
+            try:
+                cursor.executemany("""
+                    INSERT INTO stations (name, lat, lon, capacity, last_updated)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (name) DO UPDATE
+                    SET lat = EXCLUDED.lat,
+                        lon = EXCLUDED.lon,
+                        capacity = EXCLUDED.capacity,
+                        last_updated = EXCLUDED.last_updated
+                """, data)
+                logger.info(f"Upserted {len(data)} stations (inserted or updated as needed)")
+            except Exception as e:
+                logger.error(f"Error upserting stations: {str(e)}")
+                conn.rollback()
+                raise
+            
+            # Verify final station count
+            cursor.execute("SELECT COUNT(*) FROM stations")
+            final_count = cursor.fetchone()[0]
+            logger.info(f"Total stations in database: {final_count}")
             
             conn.commit()
             logger.info(f"Successfully processed station information")
@@ -190,20 +152,23 @@ class VelibDatabase:
         """Store hourly observations for all stations"""
         conn = self._get_connection()
         try:
-            if self.db_type == 'postgres':
-                # Convert DataFrame to list of tuples for PostgreSQL
-                data = [tuple(x) for x in observations_df[['datetime', 'capacity', 'available_mechanical', 
-                                                         'available_electrical', 'station_name', 
-                                                         'station_geo', 'operative']].to_numpy()]
-                cursor = conn.cursor()
-                cursor.executemany("""
-                    INSERT INTO hourly_observations 
-                    (datetime, capacity, available_mechanical, available_electrical, 
-                     station_name, station_geo, operative)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """, data)
-            else:
-                observations_df.to_sql('hourly_observations', conn, if_exists='append', index=False)
+            # Convert DataFrame to list of tuples for PostgreSQL
+            data = [tuple(x) for x in observations_df[['datetime', 'capacity', 'available_mechanical', 
+                                                     'available_electrical', 'station_name', 
+                                                     'station_geo', 'operative']].to_numpy()]
+            cursor = conn.cursor()
+            cursor.executemany("""
+                INSERT INTO hourly_observations 
+                (datetime, capacity, available_mechanical, available_electrical, 
+                 station_name, station_geo, operative)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (datetime, station_name) DO UPDATE
+                SET capacity = EXCLUDED.capacity,
+                    available_mechanical = EXCLUDED.available_mechanical,
+                    available_electrical = EXCLUDED.available_electrical,
+                    station_geo = EXCLUDED.station_geo,
+                    operative = EXCLUDED.operative
+            """, data)
             
             conn.commit()
             logger.info(f"Stored hourly observations for {len(observations_df)} stations")
@@ -223,13 +188,6 @@ class VelibDatabase:
             JOIN stations s ON h.station_id = s.station_id
             WHERE h.station_id = %s
             AND h.timestamp >= NOW() - INTERVAL '24 hours'
-            ORDER BY h.timestamp ASC
-            """ if self.db_type == 'postgres' else """
-            SELECT h.*, s.name, s.lat, s.lon, s.capacity
-            FROM hourly_observations h
-            JOIN stations s ON h.station_id = s.station_id
-            WHERE h.station_id = ?
-            AND h.timestamp >= datetime('now', '-24 hours')
             ORDER BY h.timestamp ASC
             """
             
@@ -251,12 +209,6 @@ class VelibDatabase:
             JOIN stations s ON h.station_id = s.station_id
             WHERE h.timestamp >= NOW() - INTERVAL '24 hours'
             ORDER BY h.station_id, h.timestamp ASC
-            """ if self.db_type == 'postgres' else """
-            SELECT h.*, s.name, s.lat, s.lon, s.capacity
-            FROM hourly_observations h
-            JOIN stations s ON h.station_id = s.station_id
-            WHERE h.timestamp >= datetime('now', '-24 hours')
-            ORDER BY h.station_id, h.timestamp ASC
             """
             
             df = pd.read_sql_query(query, conn)
@@ -272,16 +224,10 @@ class VelibDatabase:
         conn = self._get_connection()
         try:
             cursor = conn.cursor()
-            if self.db_type == 'postgres':
-                cursor.execute("""
-                    DELETE FROM hourly_observations 
-                    WHERE datetime < NOW() - INTERVAL '%s days'
-                """, (days_to_keep,))
-            else:
-                cursor.execute("""
-                    DELETE FROM hourly_observations 
-                    WHERE datetime < datetime('now', '-? days')
-                """, (days_to_keep,))
+            cursor.execute("""
+                DELETE FROM hourly_observations 
+                WHERE datetime < NOW() - INTERVAL '%s days'
+            """, (days_to_keep,))
             
             conn.commit()
             logger.info(f"Cleaned up data older than {days_to_keep} days")
