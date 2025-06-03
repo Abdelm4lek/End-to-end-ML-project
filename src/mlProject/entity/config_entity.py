@@ -43,3 +43,11 @@ class ModelTrainerConfig:
     feature_fraction: float
     n_estimators: int
     target_column: str
+
+
+@dataclass(frozen=True)
+class PredictionConfig:
+    model_path: Path
+    prediction_window_hours: int = 24
+    min_data_points: int = 24  
+    prediction_interval_minutes: int = 60

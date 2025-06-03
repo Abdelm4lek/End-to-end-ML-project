@@ -26,5 +26,10 @@ model_trainer:
   test_data_path: artifacts/data_transformation/test.csv
   model_name: model.joblib
 
+prediction:
+  model_path: artifacts/model_trainer/model.joblib
+  prediction_window_hours: 24
+  min_data_points: 24
+  prediction_interval_minutes: 60
 
 

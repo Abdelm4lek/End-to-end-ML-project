@@ -3,7 +3,8 @@ from mlProject.utils.common import read_yaml, create_dirs
 from mlProject.entity.config_entity import (DataIngestionConfig,
                                             DataValidationConfig,
                                             DataTransformationConfig,
-                                            ModelTrainerConfig)
+                                            ModelTrainerConfig,
+                                            PredictionConfig)
 
 class ConfigurationManager:
     def __init__(
@@ -89,3 +90,15 @@ class ConfigurationManager:
         )
 
         return model_trainer_config
+
+    def get_prediction_config(self) -> PredictionConfig:
+        config = self.config.prediction
+
+        prediction_config = PredictionConfig(
+            model_path=config.model_path,
+            prediction_window_hours=config.prediction_window_hours,
+            min_data_points=config.min_data_points,
+            prediction_interval_minutes=config.prediction_interval_minutes
+        )
+
+        return prediction_config
