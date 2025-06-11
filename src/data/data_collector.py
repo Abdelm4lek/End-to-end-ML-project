@@ -24,11 +24,9 @@ class VelibDataCollector:
     def preprocess_station_data(self, stations_df, status_df):
         """Transform raw data into desired structure"""
         try:
-            # Ensure both DataFrames have station_id as string
             stations_df['station_id'] = stations_df['station_id'].astype(str)
             status_df['station_id'] = status_df['station_id'].astype(str)
             
-            # Log station names before processing
             logger.info(f"Number of stations in stations info: {len(stations_df)}")
             logger.info(f"Number of stations in stations status: {len(status_df)}")
             
@@ -44,19 +42,17 @@ class VelibDataCollector:
                 stations_df,
                 status_df,
                 on='station_id',
-                how='inner',  # Changed from 'left' to 'inner' to ensure we only get matching stations
+                how='inner',  
                 suffixes=('', '_status')
             )
             
-            # Log the number of stations after merge
             logger.info(f"Number of stations after merge: {len(merged_df)}")
             
-            # Convert last_reported timestamp to datetime
             merged_df['last_reported'] = pd.to_datetime(merged_df['last_reported'], unit='s')
             
             # Create the new structure
             processed_df = pd.DataFrame({
-                'datetime': merged_df['last_reported'],  # Use API's last_reported timestamp
+                'datetime': merged_df['last_reported'], 
                 'capacity': merged_df['capacity'],
                 'available_mechanical': merged_df['num_bikes_available_types'].apply(
                     lambda x: x[0]['mechanical'] if isinstance(x, list) and len(x) > 0 else 0
@@ -72,7 +68,6 @@ class VelibDataCollector:
                 'operative': merged_df['is_renting'] & merged_df['is_installed']
             })
             
-            # Log unique station names before storing
             logger.info(f"Number of unique station names in processed data: {processed_df['station_name'].nunique()}")
             
             # Ensure all columns have the correct data types
@@ -95,10 +90,8 @@ class VelibDataCollector:
         try:
             response = requests.get(self.station_info_url)
             data = response.json()
-            # Convert station_id to string when creating DataFrame
             stations_df = pd.DataFrame(data['data']['stations']).astype({'station_id': str})
             
-            # Log station names before storing
             logger.info(f"Number of stations in API response: {len(stations_df)}")
             
             self.db.store_station_info(stations_df)
@@ -123,7 +116,7 @@ class VelibDataCollector:
     def collect_data(self):
         """Collect both station info and status"""
         try:
-            # First, fetch and store station information
+            # fetch and store station information
             stations_df = self.fetch_station_info()
             if stations_df is None:
                 logger.error("Failed to fetch station information")
@@ -139,7 +132,7 @@ class VelibDataCollector:
             finally:
                 self.db._release_connection(conn)
             
-            # Then fetch station status
+            # fetch station status
             status_df = self.fetch_station_status()
             if status_df is None:
                 logger.error("Failed to fetch station status")

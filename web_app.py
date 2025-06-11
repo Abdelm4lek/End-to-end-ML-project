@@ -24,7 +24,7 @@ This application provides real-time predictions for Velib station demand using l
 """)
 
 # Initialize database connection
-db = VelibDatabase(db_type='postgres')
+#db = VelibDatabase()
 
 # Load the trained model
 @st.cache_resource
@@ -38,18 +38,16 @@ def load_model():
 # Function to prepare features for prediction
 def prepare_features(station_data):
     """Prepare features for the model using last 24 hours of data"""
-    # Sort by timestamp
+
     station_data = station_data.sort_values('timestamp')
     
     # Create lagged features (last 24 hours)
     features = []
     for i in range(1, 25):
         station_data[f'bikes_lag_{i}'] = station_data['num_bikes_available'].shift(i)
-    
-    # Drop rows with NaN values (first 24 hours)
+
     features_df = station_data.dropna()
     
-    # Select only the feature columns
     feature_columns = [f'bikes_lag_{i}' for i in range(1, 25)]
     return features_df[feature_columns]
 
@@ -155,18 +153,16 @@ def display_station_data(status_df, info_df, last_updated):
 
 # Main app logic
 def main():
-    # Add a refresh button
+    # refresh button
     if st.button("🔄 Refresh Data"):
         st.cache_data.clear()
     
-    # Fetch both static and real-time data
     status_df, last_updated = fetch_velib_data()
     info_df = fetch_station_info()
     
-    # Display the real-time data
     display_station_data(status_df, info_df, last_updated)
 
-    # Add prediction section
+    # Prediction section
     st.subheader("Demand Predictions")
     st.markdown("""
     ### Next Hour Predictions

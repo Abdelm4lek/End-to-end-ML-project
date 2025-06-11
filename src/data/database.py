@@ -112,7 +112,6 @@ class VelibDatabase:
             stations_df['last_updated'] = datetime.now()
             
             cursor = conn.cursor()
-            # Use ON CONFLICT for upsert (insert or update)
             data = [tuple(x) for x in stations_df[['name', 'lat', 'lon', 'capacity', 'last_updated']].to_numpy()]
             try:
                 cursor.executemany("""
