@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 import threading
-from data.data_collector import VelibDataCollector
+from mlProject.hopsworks.velib_collector import VelibHopsworksCollector
 import logging
 import time
 import os
@@ -12,7 +12,7 @@ import atexit
 
 app = FastAPI(title="Velib Data Collector API")
 
-# Configuration du logging
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -28,7 +28,7 @@ MAX_RESTARTS = 3
 
 def run_collector():
     global last_collection_time, restart_count
-    collector = VelibDataCollector()
+    collector = VelibHopsworksCollector()
     
     while running:
         try:
@@ -46,18 +46,18 @@ def run_collector():
                 os._exit(1)  # Force exit to trigger platform restart
             time.sleep(60)  # Wait a minute before retrying
 
-def cleanup():
-    global running
-    logger.info("Performing cleanup before shutdown")
-    running = False
-    if collector_thread and collector_thread.is_alive():
-        collector_thread.join(timeout=5)
-    logger.info("Cleanup completed")
+@app.on_event("startup")
+async def startup_event():
+    global collector_thread
+    collector_thread = threading.Thread(target=run_collector)
+    collector_thread.start()
 
-def signal_handler(signum, frame):
-    logger.info(f"Received signal {signum}")
-    cleanup()
-    sys.exit(0)
+@app.on_event("shutdown")
+async def shutdown_event():
+    global running
+    running = False
+    if collector_thread:
+        collector_thread.join()
 
 @app.get("/")
 async def home():
@@ -67,44 +67,5 @@ async def home():
         "restart_count": restart_count
     }
 
-@app.get("/health")
-async def health():
-    is_healthy = (
-        collector_thread is not None 
-        and collector_thread.is_alive() 
-        and last_collection_time is not None 
-        and (datetime.now() - last_collection_time).total_seconds() < 7200  # 2 hours
-    )
-    return {
-        "status": "OK" if is_healthy else "DEGRADED",
-        "collector_running": collector_thread and collector_thread.is_alive(),
-        "last_collection": str(last_collection_time) if last_collection_time else "No data collected yet",
-        "restart_count": restart_count
-    }
-
-def start_collector():
-    global collector_thread
-    collector_thread = threading.Thread(target=run_collector, daemon=True)
-    collector_thread.start()
-    logger.info("Collector thread started")
-
-if __name__ == '__main__':
-    # Register signal handlers and cleanup
-    signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGINT, signal_handler)
-    atexit.register(cleanup)
-    
-    # Start the collector
-    start_collector()
-    
-    # Start the FastAPI app
-    port = int(os.environ.get('PORT', 8080))
-    logger.info(f"Starting FastAPI server on port {port}")
-    uvicorn.run(
-        app, 
-        host="0.0.0.0", 
-        port=port, 
-        log_level="info",
-        access_log=True,
-        workers=1  # Ensure single worker to prevent multiple collectors
-    ) 
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000) 

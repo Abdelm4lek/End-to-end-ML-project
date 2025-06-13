@@ -1,0 +1,42 @@
+name: Velib Data Collector
+
+on:
+  schedule:
+    - cron: '0 * * * *'  # Run every hour
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  collect-data:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential python3-dev
+        
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Run Velib collector
+      env:
+        HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
+        HOPSWORKS_PROJECT_NAME: Velib_demand_prediction
+      run: |
+        python -m src.mlProject.hopsworks.velib_collector
+      continue-on-error: true  # Continue even if the collector fails
+      
+    - name: Handle failure
+      if: failure()
+      run: |
+        echo "Data collection failed. Check the logs for details."
+        exit 1 
