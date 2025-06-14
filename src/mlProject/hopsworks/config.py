@@ -1,18 +1,23 @@
 import os
+from dataclasses import dataclass
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv('DB_credentials.env')
 
-# Hopsworks configuration
-HOPSWORKS_API_KEY = os.getenv("HOPSWORKS_API_KEY")
-HOPSWORKS_PROJECT_NAME = os.getenv("HOPSWORKS_PROJECT_NAME")
-HOPSWORKS_HOST = os.getenv("HOPSWORKS_HOST")
+@dataclass
+class HopsworksConfig:
+    """Configuration class for Hopsworks integration."""
+    api_key: str = os.getenv("HOPSWORKS_API_KEY")
+    project_name: str = os.getenv("HOPSWORKS_PROJECT_NAME")
+    feature_group_name: str = "Velib_data_features"
+    feature_view_name: str = "Velib_data_feature_view"
+    model_name: str = "Velib_demand_model"
+    model_version: str = "1.0"
 
-# Feature Store configuration
-FEATURE_GROUP_NAME = "Velib_data_features"
-FEATURE_VIEW_NAME = "Velib_data_feature_view"
-
-# Model Registry configuration
-MODEL_NAME = "Velib_demand_model"
-MODEL_VERSION = 1.0
+    def __post_init__(self):
+        """Validate required configuration values."""
+        if not self.api_key:
+            raise ValueError("HOPSWORKS_API_KEY environment variable is not set")
+        if not self.project_name:
+            raise ValueError("HOPSWORKS_PROJECT_NAME environment variable is not set")

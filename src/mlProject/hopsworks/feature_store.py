@@ -1,21 +1,17 @@
 import hopsworks
 import pandas as pd
 from typing import Optional, List
-from .config import (
-    HOPSWORKS_API_KEY,
-    HOPSWORKS_PROJECT_NAME,
-    FEATURE_GROUP_NAME,
-    FEATURE_VIEW_NAME
-)
+from .config import HopsworksConfig
 
 
 
 class HopsworksFeatureStore:
-    def __init__(self):
+    def __init__(self, config: HopsworksConfig):
         """Initialize connection to Hopsworks feature store."""
+        self.config = config
         self.project = hopsworks.login(
-            api_key_value=HOPSWORKS_API_KEY,
-            project=HOPSWORKS_PROJECT_NAME
+            api_key_value=self.config.api_key,
+            project=self.config.project_name
         )
         self.fs = self.project.get_feature_store()
             
@@ -38,20 +34,20 @@ class HopsworksFeatureStore:
         feature_group.insert(df)
         return feature_group
     
-    def get_feature_view(self) -> Optional[hopsworks.feature_view.FeatureView]:
+    def get_feature_view(self):
         """Get the feature view for velib data prediction."""
         try:
             return self.fs.get_feature_view(
-                name=FEATURE_VIEW_NAME,
+                name=self.config.feature_view_name,
                 version=1
             )
         except:
             return None
     
-    def create_feature_view(self, feature_group: hopsworks.feature_group.FeatureGroup):
+    def create_feature_view(self, feature_group):
         """Create a feature view from the feature group."""
         feature_view = self.fs.create_feature_view(
-            name=FEATURE_VIEW_NAME,
+            name=self.config.feature_view_name,
             version=1,
             query=feature_group.select_all()
         )
