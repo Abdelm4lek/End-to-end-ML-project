@@ -29,8 +29,9 @@ jobs:
         
     - name: Run Velib collector
       env:
-        HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
-        HOPSWORKS_PROJECT_NAME: Velib_demand_prediction
+        HOPSWORKS_API_KEY: ${{secrets.HOPSWORKS_API_KEY}}
+        HOPSWORKS_PROJECT_NAME: ${{ secrets.HOPSWORKS_PROJECT_NAME }}
+        HOPSWORKS_HOST: ${{ secrets.HOPSWORKS_HOST }}
       run: |
         python -m src.mlProject.hopsworks.velib_collector
       continue-on-error: true  # Continue even if the collector fails

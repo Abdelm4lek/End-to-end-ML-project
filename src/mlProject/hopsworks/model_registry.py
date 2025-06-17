@@ -1,7 +1,7 @@
 import hopsworks
 import joblib
 from typing import Optional, Any
-from .config import HopsworksConfig
+from mlProject.hopsworks.config import HopsworksConfig
 
 class HopsworksModelRegistry:
     def __init__(self, config: HopsworksConfig):

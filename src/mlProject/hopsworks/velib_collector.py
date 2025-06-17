@@ -6,8 +6,10 @@ from datetime import datetime
 import logging
 import json
 from typing import Optional, Tuple
-from .feature_store import HopsworksFeatureStore
-from .feature_schema import get_feature_group_schema
+from mlProject.hopsworks.feature_store import HopsworksFeatureStore
+from mlProject.hopsworks.feature_schema import get_feature_group_schema
+from mlProject.hopsworks.config import HopsworksConfig
+import pytz
 
 # Configure logging
 logging.basicConfig(
@@ -19,7 +21,8 @@ logger = logging.getLogger(__name__)
 class VelibHopsworksCollector:
     def __init__(self):
         """Initialize the Velib data collector with Hopsworks feature store."""
-        self.feature_store = HopsworksFeatureStore()
+        self.config = HopsworksConfig()
+        self.feature_store = HopsworksFeatureStore(self.config)
         self.station_info_url = "https://velib-metropole-opendata.smovengo.cloud/opendata/Velib_Metropole/station_information.json"
         self.station_status_url = "https://velib-metropole-opendata.smovengo.cloud/opendata/Velib_Metropole/station_status.json"
         
@@ -30,7 +33,9 @@ class VelibHopsworksCollector:
                 name=schema["name"],
                 version=schema["version"]
             )
-        except:
+            logger.info(f"Retrieved existing feature group: {schema['name']}")
+        except ValueError as e:
+            logger.info(f"Creating new feature group: {schema['name']}")
             self.feature_group = self.feature_store.create_feature_group(
                 name=schema["name"],
                 version=schema["version"],
@@ -53,20 +58,22 @@ class VelibHopsworksCollector:
             logger.error(f"Error fetching station info: {str(e)}")
             return None
     
-    def fetch_station_status(self) -> Optional[pd.DataFrame]:
+    def fetch_station_status(self) -> Optional[Tuple[pd.DataFrame, int]]:
         """Fetch current station status from Velib API."""
         try:
             response = requests.get(self.station_status_url)
             data = response.json()
             status_df = pd.DataFrame(data['data']['stations'])
             status_df['station_id'] = status_df['station_id'].astype(str)
+            # Get the lastUpdatedOther timestamp
+            last_updated = data.get('lastUpdatedOther', None)
             logger.info(f"Fetched status for {len(status_df)} stations")
-            return status_df
+            return status_df, last_updated
         except Exception as e:
             logger.error(f"Error fetching station status: {str(e)}")
-            return None
+            return None, None
     
-    def preprocess_data(self, stations_df: pd.DataFrame, status_df: pd.DataFrame) -> pd.DataFrame:
+    def preprocess_data(self, stations_df: pd.DataFrame, status_df: pd.DataFrame, last_updated) -> pd.DataFrame:
         """Preprocess and merge station information and status data."""
         try:
             # Merge station info and status
@@ -86,8 +93,12 @@ class VelibHopsworksCollector:
                 lambda x: x[1]['ebike'] if isinstance(x, list) and len(x) > 1 else 0
             )
             
-            # Convert timestamps
-            merged_df['datetime'] = pd.to_datetime(merged_df['last_reported'], unit='s')
+            # Convert to Paris time with DST handling
+            utc_time = pd.to_datetime(last_updated, unit='s').tz_localize('UTC')
+            paris_time = utc_time.astimezone(pytz.timezone('Europe/Paris'))
+            # Get the offset in hours
+            offset_hours = paris_time.utcoffset().total_seconds() / 3600
+            merged_df['datetime'] = utc_time + pd.Timedelta(hours=offset_hours)
             
             # Create station_geo JSON
             merged_df['station_geo'] = merged_df.apply(
@@ -114,6 +125,9 @@ class VelibHopsworksCollector:
                 'operative': 'bool'
             })
             
+            # Print datetime for debugging
+            logger.info(f"DataFrame datetime before saving: {processed_df['datetime'][0]}")
+            
             return processed_df
             
         except Exception as e:
@@ -129,13 +143,13 @@ class VelibHopsworksCollector:
                 logger.error("Failed to fetch station information")
                 return
             
-            status_df = self.fetch_station_status()
+            status_df, last_updated = self.fetch_station_status()
             if status_df is None:
                 logger.error("Failed to fetch station status")
                 return
             
             # Preprocess data
-            processed_df = self.preprocess_data(stations_df, status_df)
+            processed_df = self.preprocess_data(stations_df, status_df, last_updated)
             
             # Append to feature group
             self.feature_group.insert(processed_df)
@@ -143,22 +157,20 @@ class VelibHopsworksCollector:
             
         except Exception as e:
             logger.error(f"Error in data collection: {str(e)}")
-            raise
+            raise 
 
 def main():
     """Main function to run the data collector."""
     collector = VelibHopsworksCollector()
     
-    # Schedule data collection every hour
-    schedule.every().hour.at(":00").do(collector.collect_data)
-    
-    # Initial data collection
+    # Run data collection once
     collector.collect_data()
     
-    # Keep the script running
-    while True:
-        schedule.run_pending()
-        time.sleep(60) 
+    # Clean up old data
+    collector.feature_store.cleanup_old_data(days_to_keep=30)
+
+    # Exit after completion
+    logger.info("Process completed. Exiting.")
 
 if __name__ == "__main__":
     main()

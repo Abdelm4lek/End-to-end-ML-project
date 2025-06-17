@@ -10,6 +10,8 @@ class HopsworksConfig:
     """Configuration class for Hopsworks integration."""
     api_key: str = os.getenv("HOPSWORKS_API_KEY")
     project_name: str = os.getenv("HOPSWORKS_PROJECT_NAME")
+    host: str = os.getenv("HOPSWORKS_HOST")
+    port: int = os.getenv("HOPSWORKS_PORT")
     feature_group_name: str = "Velib_data_features"
     feature_view_name: str = "Velib_data_feature_view"
     model_name: str = "Velib_demand_model"
