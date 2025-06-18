@@ -29,7 +29,7 @@ jobs:
         
     - name: Run Velib collector
       env:
-        HOPSWORKS_API_KEY: ${{secrets.HOPSWORKS_API_KEY}}
+        HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
         HOPSWORKS_PROJECT_NAME: ${{ secrets.HOPSWORKS_PROJECT_NAME }}
         HOPSWORKS_HOST: ${{ secrets.HOPSWORKS_HOST }}
       run: |

@@ -18,5 +18,5 @@ joblib
 types-PyYAML
 fastapi
 uvicorn
-hopsworks
+hopsworks[python]
 -e .
