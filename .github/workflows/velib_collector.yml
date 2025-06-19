@@ -34,7 +34,7 @@ jobs:
         HOPSWORKS_HOST: ${{ secrets.HOPSWORKS_HOST }}
       run: |
         python -m src.mlProject.hopsworks.velib_collector
-      continue-on-error: true  # Continue even if the collector fails
+      continue-on-error: false  # Changed to false since errors are now handled in the script now
       
     - name: Handle failure
       if: failure()

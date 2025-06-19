@@ -3,6 +3,7 @@ import pandas as pd
 from typing import Optional, List
 from mlProject.hopsworks.config import HopsworksConfig
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -104,10 +105,22 @@ class HopsworksFeatureStore:
             # Calculate the cutoff date with timezone awareness
             cutoff_date = pd.Timestamp.now(tz='Europe/Paris') - pd.Timedelta(days=days_to_keep)
             
-            # Get the data to delete using proper filter syntax
-            query = feature_group.select_all()
-            query = query.filter(feature_group.datetime < cutoff_date)
-            df_to_delete = query.read()
+            # Try to get the data to delete with retry logic
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    # Get the data to delete using proper filter syntax
+                    query = feature_group.select_all()
+                    query = query.filter(feature_group.datetime < cutoff_date)
+                    df_to_delete = query.read()
+                    break  # Success, exit retry loop
+                except Exception as e:
+                    if "hoodie.properties" in str(e) and attempt < max_retries - 1:
+                        logger.warning(f"Hudi metadata not ready, retrying in 10 seconds (attempt {attempt + 1}/{max_retries})")
+                        time.sleep(10)
+                        continue
+                    else:
+                        raise e
             
             if not df_to_delete.empty:
                 # Delete the records

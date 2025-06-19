@@ -166,8 +166,17 @@ def main():
     # Run data collection once
     collector.collect_data()
     
-    # Clean up old data
-    collector.feature_store.cleanup_old_data(days_to_keep=30)
+    # Add a delay to allow Hudi metadata to be written
+    logger.info("Waiting 30 seconds for Hudi metadata to be written before cleanup...")
+    time.sleep(30)
+    
+    # Clean up old data with error handling
+    try:
+        collector.feature_store.cleanup_old_data(days_to_keep=30)
+        logger.info("Cleanup completed successfully")
+    except Exception as e:
+        logger.warning(f"Cleanup failed but data collection was successful: {str(e)}")
+        logger.info("This is not critical - data collection completed successfully")
 
     # Exit after completion
     logger.info("Process completed. Exiting.")
