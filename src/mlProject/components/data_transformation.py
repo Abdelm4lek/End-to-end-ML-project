@@ -51,8 +51,8 @@ class DataTransformation:
         df = df.with_columns(
             total_available = total_available,
             free_terminals = pl.col("capacity") - total_available,
-            lat = pl.col("station_geo").str.split(",").list.first().cast(float),
-            lon = pl.col("station_geo").str.split(",").list.last().cast(float)
+            lat = pl.col("station_geo").str.json_path_match("$.lat").cast(pl.Float64),
+            lon = pl.col("station_geo").str.json_path_match("$.lon").cast(pl.Float64)
         )
 
         # Group by date, hour, and station, taking last value in each hour
@@ -168,7 +168,7 @@ class DataTransformation:
 
 
 
-    def split_train_test(self, df, split_ratio=0.95):
+    def split_train_test(self, df, split_ratio=0.8):
         # Define the split index
         split_index = int(len(df) * split_ratio)
 
