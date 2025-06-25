@@ -1,6 +1,5 @@
 pandas
 requests
-psycopg2-binary
 python-dotenv
 schedule
 streamlit
@@ -19,4 +18,5 @@ types-PyYAML
 fastapi
 uvicorn
 hopsworks[python]
+aiohttp
 -e .
