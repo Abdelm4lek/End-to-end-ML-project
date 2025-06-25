@@ -5,7 +5,6 @@ import json
 from datetime import datetime, timezone
 import plotly.express as px
 import plotly.graph_objects as go
-from src.data.database import VelibDatabase
 import joblib
 import numpy as np
 import pytz
@@ -173,10 +172,11 @@ def main():
     model = load_model()
     
     if model is not None:
-        # Get historical data for predictions
-        current_data = db.get_all_stations_last_24h()
+        # TODO: Integrate with Hopsworks Feature Store for predictions
+        # For now, prediction functionality is disabled
+        st.info("Prediction functionality is temporarily disabled. Will be integrated with Hopsworks Feature Store.")
         
-        if current_data is not None:
+        if False:  # Temporarily disabled
             # Make predictions
             predictions = make_predictions(model, current_data)
             
