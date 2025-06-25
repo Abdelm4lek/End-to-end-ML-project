@@ -1,23 +1,33 @@
 artifacts_root: artifacts
 
 data_ingestion:
-  type: local
+  mode: production  # local or production
+  
+  # Local development configuration
+  local:
   root_dir: artifacts/data_ingestion
   source_url: https://raw.githubusercontent.com/Abdelm4lek/Datasets/main/Velib_historique_stations.rar
   local_data_file: artifacts/data_ingestion/velib_data.rar
   unzip_dir: artifacts/data_ingestion
   unzip_data_path: artifacts/data_ingestion/historique_stations.csv
+  
+  # Production configuration  
+  production:
+    root_dir: artifacts/data_ingestion
+    unzip_data_path: artifacts/data_ingestion/fresh_data.csv
+    training_window_days: 30
+    min_data_points: 10000
 
 
 data_validation:
   root_dir: artifacts/data_validation
-  unzip_data_dir: artifacts/data_ingestion/historique_stations.csv
+  unzip_data_dir: artifacts/data_ingestion/fresh_data.csv
   STATUS_FILE: artifacts/data_validation/status.txt
 
 
 data_transformation:
   root_dir: artifacts/data_transformation
-  data_path: artifacts/data_ingestion/historique_stations.csv
+  data_path: artifacts/data_ingestion/fresh_data.csv
   
 
 model_trainer:
@@ -25,6 +35,7 @@ model_trainer:
   train_data_path: artifacts/data_transformation/train.csv
   test_data_path: artifacts/data_transformation/test.csv
   model_name: model.joblib
+  mlflow_uri: "https://dagshub.com/Abdelm4lek/End-to-end-ML-project-with-MLflow.mlflow"
 
 model_evaluation:
   root_dir: artifacts/model_evaluation
@@ -35,9 +46,9 @@ model_evaluation:
   mlflow_uri: "https://dagshub.com/Abdelm4lek/End-to-end-ML-project-with-MLflow.mlflow"
 
 prediction:
+  root_dir: artifacts/predictions
   model_path: artifacts/model_trainer/model.joblib
   prediction_window_hours: 24
   min_data_points: 24
   prediction_interval_minutes: 60
-
-
+  predictions_path: artifacts/predictions/station_predictions.csv

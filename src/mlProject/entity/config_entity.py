@@ -5,10 +5,15 @@ from pathlib import Path
 @dataclass(frozen=True)
 class DataIngestionConfig:
     root_dir: Path
-    source_URL: str
-    local_data_file: Path
-    unzip_dir: Path
     unzip_data_path: Path
+    mode: str  # local or production
+    # Local mode fields
+    source_URL: str = None
+    local_data_file: Path = None
+    unzip_dir: Path = None
+    # Production mode fields
+    training_window_days: int = None
+    min_data_points: int = None
 
 
 
@@ -43,11 +48,41 @@ class ModelTrainerConfig:
     feature_fraction: float
     n_estimators: int
     target_column: str
+    mlflow_uri: str
 
 
 @dataclass(frozen=True)
 class PredictionConfig:
+    root_dir: Path
     model_path: Path
+    predictions_path: Path
     prediction_window_hours: int = 24
     min_data_points: int = 24  
     prediction_interval_minutes: int = 60
+
+
+@dataclass(frozen=True)
+class ProductionRetrainingConfig:
+    # Data source settings
+    data_source: str
+    training_window_days: int
+    min_data_points: int
+    
+    # Retraining schedule
+    retrain_frequency: str
+    auto_retrain: bool
+    
+    # Model performance thresholds  
+    min_improvement_threshold: float
+    
+    # MLflow settings
+    experiment_name: str
+    mlflow_uri: str
+    
+    # Model registry settings
+    model_name: str
+    model_stage: str
+    
+    # Fallback settings
+    fallback_to_artifacts: bool
+    artifacts_backup_enabled: bool
