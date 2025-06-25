@@ -1,9 +1,10 @@
 import hopsworks
 import pandas as pd
 from typing import Optional, List
-from mlProject.hopsworks.config import HopsworksConfig
+from .config import HopsworksConfig
 import logging
 import time
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +91,58 @@ class HopsworksFeatureStore:
         
         return feature_view.get_feature_vector(feature_vector)
     
+    def get_recent_station_data(self, hours: int = 24, feature_group_name: str = "velib_stations_status", version: int = 1) -> Optional[pd.DataFrame]:
+        """
+        Get recent station data for prediction purposes.
+        
+        Args:
+            hours (int): Number of hours to look back (default: 24)
+            feature_group_name (str): Name of the feature group
+            version (int): Version of the feature group
+            
+        Returns:
+            Optional[pd.DataFrame]: Station data with required columns
+        """
+        try:
+            # Get the feature group
+            feature_group = self.get_feature_group(feature_group_name, version)
+            
+            # Calculate time range
+            end_time = datetime.now()
+            start_time = end_time - timedelta(hours=hours)
+            
+            logger.info(f"Querying feature group {feature_group_name} for data from {start_time} to {end_time}")
+            
+            # Query the feature group
+            query = feature_group.select_all().filter(
+                feature_group.datetime >= start_time
+            ).filter(
+                feature_group.datetime <= end_time
+            )
+            
+            # Execute query
+            station_data = query.read()
+            
+            if station_data.empty:
+                logger.warning(f"No data found for the last {hours} hours")
+                return None
+            
+            # Ensure we have the required columns
+            required_columns = ['datetime', 'station_name', 'available_mechanical', 'available_electrical']
+            if not all(col in station_data.columns for col in required_columns):
+                logger.error(f"Missing required columns. Available: {station_data.columns.tolist()}")
+                return None
+            
+            # Sort by datetime and station_name
+            station_data = station_data.sort_values(['station_name', 'datetime'])
+            
+            logger.info(f"Retrieved {len(station_data)} records for {station_data['station_name'].nunique()} stations")
+            return station_data
+            
+        except Exception as e:
+            logger.error(f"Error getting recent station data: {str(e)}")
+            return None
+
     def cleanup_old_data(self, feature_group_name: str = "velib_stations_status", version: int = 1, days_to_keep: int = 30):
         """Clean up data older than specified days from the feature group."""
         try:
