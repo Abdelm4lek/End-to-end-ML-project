@@ -29,9 +29,9 @@ jobs:
         
     - name: Run Velib collector
       env:
-        HOPSWORKS_API_KEY: ${ secrets.HOPSWORKS_API_KEY }
-        HOPSWORKS_PROJECT_NAME: ${ secrets.HOPSWORKS_PROJECT_NAME }
-        HOPSWORKS_HOST: ${ secrets.HOPSWORKS_HOST }
+        HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
+        HOPSWORKS_PROJECT_NAME: ${{ secrets.HOPSWORKS_PROJECT_NAME }}
+        HOPSWORKS_HOST: ${{ secrets.HOPSWORKS_HOST }}
       run: |
         python -m src.mlProject.hopsworks.velib_collector
       continue-on-error: false  # Changed to false since errors are now handled in the script now
