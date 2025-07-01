@@ -85,13 +85,25 @@ class VelibHopsworksCollector:
                 suffixes=('', '_status')
             )
             
-            # Extract mechanical and electrical bike counts
-            merged_df['available_mechanical'] = merged_df['num_bikes_available_types'].apply(
-                lambda x: x[0]['mechanical'] if isinstance(x, list) and len(x) > 0 else 0
-            )
-            merged_df['available_electrical'] = merged_df['num_bikes_available_types'].apply(
-                lambda x: x[1]['ebike'] if isinstance(x, list) and len(x) > 1 else 0
-            )
+            # Extract mechanical and electrical bike counts with robust error handling
+            def get_mechanical(x):
+                try:
+                    if isinstance(x, list) and len(x) > 0:
+                        return x[0].get('mechanical', 0)
+                    return 0
+                except:
+                    return 0
+            
+            def get_electrical(x):
+                try:
+                    if isinstance(x, list) and len(x) > 1:
+                        return x[1].get('ebike', 0)
+                    return 0
+                except:
+                    return 0
+            
+            merged_df['available_mechanical'] = merged_df['num_bikes_available_types'].apply(get_mechanical)
+            merged_df['available_electrical'] = merged_df['num_bikes_available_types'].apply(get_electrical)
             
             # Convert to Paris time with DST handling
             utc_time = pd.to_datetime(last_updated, unit='s').tz_localize('UTC')
