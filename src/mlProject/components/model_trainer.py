@@ -7,6 +7,8 @@ import joblib
 import mlflow
 import mlflow.lightgbm
 from datetime import datetime
+import dotenv
+
 
 
 class ModelTrainer:
@@ -16,29 +18,30 @@ class ModelTrainer:
     def setup_mlflow(self):
         """Setup MLflow tracking for the experiment."""
         try:
-            # Set tracking URI from config
-            mlflow_uri = getattr(self.config, 'mlflow_uri', None)
+            # Set tracking credentials from config
+            dotenv.load_dotenv("DB_credentials.env") # contains the authentication credentials for the mlflow server
+            mlflow_uri = mlflow_uri = self.config.mlflow_uri
+
             if mlflow_uri:
                 mlflow.set_tracking_uri(mlflow_uri)
                 logger.info(f"MLflow tracking URI set to: {mlflow_uri}")
             else:
                 logger.warning("No MLflow URI found in config, using local tracking")
             
-            experiment_name = "velib_demand_prediction"
+            experiment_name = "velib_demand_model_training"
             try:
                 experiment = mlflow.get_experiment_by_name(experiment_name)
-                if experiment is None:
-                    experiment_id = mlflow.create_experiment(experiment_name)
-                    logger.info(f"Created new MLflow experiment: {experiment_name}")
-                else:
-                    experiment_id = experiment.experiment_id
+                if experiment is not None:
                     logger.info(f"Using existing MLflow experiment: {experiment_name}")
+                else:
+                    experiment_id = mlflow.create_experiment(experiment_name)
+                    logger.info(f"Created new MLflow experiment: {experiment_name} with ID: {experiment_id}")
                 
                 mlflow.set_experiment(experiment_name)
+                logger.info(f"MLflow experiment set to: {experiment_name}")
                 return True
-                
-            except Exception as e:
-                logger.error(f"Error setting up MLflow experiment: {str(e)}")
+            except mlflow.exceptions.MlflowException as e:
+                logger.error(f"Error accessing or creating MLflow experiment: {str(e)}")
                 return False
                 
         except Exception as e:
@@ -114,8 +117,15 @@ class ModelTrainer:
                         valid_names=['train', 'eval'],
                         callbacks=[lgb.early_stopping(10), lgb.log_evaluation(period=50)])
         
-        # Log model to MLflow
-        mlflow.lightgbm.log_model(lgbm, "model")
+        # Log model to MLflow with signature and input example
+        # Get a sample from training data for input example
+        input_example = X_train.head(5)  # Use first 5 rows as example
+        mlflow.lightgbm.log_model(
+            lgbm, 
+            "model", 
+            input_example=input_example,
+            signature=mlflow.models.infer_signature(X_train, lgbm.predict(X_train[:100]))
+        )
         
         # Save model locally as well
         model_path = os.path.join(self.config.root_dir, self.config.model_name)
