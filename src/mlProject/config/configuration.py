@@ -4,6 +4,7 @@ from mlProject.entity.config_entity import (DataIngestionConfig,
                                             DataValidationConfig,
                                             DataTransformationConfig,
                                             ModelTrainerConfig,
+                                            ModelEvaluationConfig,
                                             PredictionConfig,
                                             ProductionRetrainingConfig)
 
@@ -110,6 +111,25 @@ class ConfigurationManager:
 
         return model_trainer_config
 
+    def get_model_evaluation_config(self) -> ModelEvaluationConfig:
+        config = self.config.model_evaluation
+        params = self.params.LightGBM
+        schema = self.schema.TARGET_COLUMN
+
+        create_dirs([config.root_dir])
+
+        model_evaluation_config = ModelEvaluationConfig(
+            root_dir=config.root_dir,
+            test_data_path=config.test_data_path,
+            model_path=config.model_path,
+            all_params=params,
+            metric_file_name=config.metric_file_name,
+            target_column=schema.name,
+            mlflow_uri=config.mlflow_uri
+        )
+
+        return model_evaluation_config
+
     def get_prediction_config(self) -> PredictionConfig:
         config = self.config.prediction
 
@@ -125,23 +145,3 @@ class ConfigurationManager:
         )
 
         return prediction_config
-    
-    def get_production_retraining_config(self) -> ProductionRetrainingConfig:
-        config = self.config.production_retraining
-
-        production_retraining_config = ProductionRetrainingConfig(
-            data_source=config.data_source,
-            training_window_days=config.training_window_days,
-            min_data_points=config.min_data_points,
-            retrain_frequency=config.retrain_frequency,
-            auto_retrain=config.auto_retrain,
-            min_improvement_threshold=config.min_improvement_threshold,
-            experiment_name=config.experiment_name,
-            mlflow_uri=config.mlflow_uri,
-            model_name=config.model_name,
-            model_stage=config.model_stage,
-            fallback_to_artifacts=config.fallback_to_artifacts,
-            artifacts_backup_enabled=config.artifacts_backup_enabled
-        )
-
-        return production_retraining_config

@@ -52,6 +52,17 @@ class ModelTrainerConfig:
 
 
 @dataclass(frozen=True)
+class ModelEvaluationConfig:
+    root_dir: Path
+    test_data_path: Path
+    model_path: Path
+    all_params: dict
+    metric_file_name: Path
+    target_column: str
+    mlflow_uri: str
+
+
+@dataclass(frozen=True)
 class PredictionConfig:
     root_dir: Path
     model_path: Path
@@ -59,30 +70,3 @@ class PredictionConfig:
     prediction_window_hours: int = 24
     min_data_points: int = 24  
     prediction_interval_minutes: int = 60
-
-
-@dataclass(frozen=True)
-class ProductionRetrainingConfig:
-    # Data source settings
-    data_source: str
-    training_window_days: int
-    min_data_points: int
-    
-    # Retraining schedule
-    retrain_frequency: str
-    auto_retrain: bool
-    
-    # Model performance thresholds  
-    min_improvement_threshold: float
-    
-    # MLflow settings
-    experiment_name: str
-    mlflow_uri: str
-    
-    # Model registry settings
-    model_name: str
-    model_stage: str
-    
-    # Fallback settings
-    fallback_to_artifacts: bool
-    artifacts_backup_enabled: bool
