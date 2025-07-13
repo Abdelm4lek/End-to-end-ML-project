@@ -5,8 +5,8 @@ from mlProject.entity.config_entity import (DataIngestionConfig,
                                             DataTransformationConfig,
                                             ModelTrainerConfig,
                                             ModelEvaluationConfig,
-                                            PredictionConfig,
-                                            ProductionRetrainingConfig)
+                                            ModelDeploymentConfig,
+                                            PredictionConfig)
 
 class ConfigurationManager:
     def __init__(
@@ -129,6 +129,22 @@ class ConfigurationManager:
         )
 
         return model_evaluation_config
+
+    def get_model_deployment_config(self) -> ModelDeploymentConfig:
+        config = self.config.model_deployment
+
+        create_dirs([config.root_dir])
+
+        model_deployment_config = ModelDeploymentConfig(
+            root_dir=config.root_dir,
+            mlflow_tracking_uri=config.mlflow_tracking_uri,
+            model_name=config.model_name,
+            evaluation_experiment_name=config.evaluation_experiment_name,
+            performance_threshold=config.performance_threshold,
+            deployment_log_file=config.deployment_log_file
+        )
+
+        return model_deployment_config
 
     def get_prediction_config(self) -> PredictionConfig:
         config = self.config.prediction

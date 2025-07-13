@@ -45,6 +45,17 @@ model_evaluation:
   target_column: total_available
   mlflow_uri: https://dagshub.com/Abdelm4lek/End-to-end-ML-project.mlflow
 
+model_deployment:
+  root_dir: artifacts/model_deployment
+  mlflow_tracking_uri: https://dagshub.com/Abdelm4lek/End-to-end-ML-project.mlflow
+  model_name: VelibDemandLGBMRegressor
+  evaluation_experiment_name: velib_demand_model_evaluation
+  performance_threshold:
+    rmse: 2.0
+    mae: 1.5
+    r2: 0.85
+  deployment_log_file: artifacts/model_deployment/deployment_log.json
+
 prediction:
   root_dir: artifacts/predictions
   model_path: artifacts/model_trainer/model.joblib

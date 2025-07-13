@@ -63,6 +63,16 @@ class ModelEvaluationConfig:
 
 
 @dataclass(frozen=True)
+class ModelDeploymentConfig:
+    root_dir: Path
+    mlflow_tracking_uri: str
+    model_name: str
+    evaluation_experiment_name: str
+    performance_threshold: dict
+    deployment_log_file: Path
+
+
+@dataclass(frozen=True)
 class PredictionConfig:
     root_dir: Path
     model_path: Path

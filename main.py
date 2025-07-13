@@ -1,10 +1,11 @@
 from mlProject import logger
-from mlProject.pipeline.stage_01_data_ingestion import DataIngestionPipeline
-from mlProject.pipeline.stage_02_data_validation import DataValidationPipeline
-from mlProject.pipeline.stage_03_data_transformation import DataTransformationPipeline
-from mlProject.pipeline.stage_04_model_trainer import ModelTrainerPipeline
-from mlProject.pipeline.stage_05_model_evaluation import ModelEvaluationPipeline
-from mlProject.pipeline.stage_06_prediction import PredictionPipeline
+from mlProject.pipeline.data_ingestion_stage import DataIngestionPipeline
+from mlProject.pipeline.data_validation_stage import DataValidationPipeline
+from mlProject.pipeline.data_transformation_stage import DataTransformationPipeline
+from mlProject.pipeline.model_training_stage import ModelTrainerPipeline
+from mlProject.pipeline.model_evaluation_stage import ModelEvaluationPipeline
+from mlProject.pipeline.model_deployment_stage import ModelDeploymentPipeline
+from mlProject.pipeline.prediction_stage import PredictionPipeline
 
 
 STAGE_NAME = "Data Ingestion stage"
@@ -62,6 +63,18 @@ try:
    logger.info(f">>>>>> {STAGE_NAME} started <<<<<<") 
    model_evaluation_pipeline = ModelEvaluationPipeline()
    model_evaluation_pipeline.main()
+   logger.info(f">>>>>> {STAGE_NAME} completed <<<<<<\n\n{'='*100}")
+except Exception as e:
+        logger.exception(e)
+        raise e
+
+
+
+STAGE_NAME = "Model Deployment stage"
+try:
+   logger.info(f">>>>>> {STAGE_NAME} started <<<<<<") 
+   model_deployment_pipeline = ModelDeploymentPipeline()
+   model_deployment_pipeline.main()
    logger.info(f">>>>>> {STAGE_NAME} completed <<<<<<\n\n{'='*100}")
 except Exception as e:
         logger.exception(e)

@@ -1,9 +1,11 @@
 import os
 from dataclasses import dataclass
 from dotenv import load_dotenv
+from typing import Dict
 
 # Load environment variables
 load_dotenv('DB_credentials.env')
+
 
 @dataclass
 class HopsworksConfig:
@@ -23,3 +25,13 @@ class HopsworksConfig:
             raise ValueError("HOPSWORKS_API_KEY environment variable is not set")
         if not self.project_name:
             raise ValueError("HOPSWORKS_PROJECT_NAME environment variable is not set")
+
+
+
+@dataclass
+class MLflowBridgeConfig:
+    """Configuration class for MLflow-Hopsworks bridge."""
+    mlflow_tracking_uri: str
+    model_name: str
+    performance_threshold: Dict[str, float]
+    hopsworks_config: HopsworksConfig

@@ -1,3 +1,5 @@
+import os
+from mlProject import logger
 import hopsworks
 import joblib
 from typing import Optional, Any
@@ -15,23 +17,31 @@ class HopsworksModelRegistry:
     
     def save_model(self, model: Any, metrics: dict, description: str = "Velib demand prediction model"):
         """Save a model to the model registry."""
-        model_dir = self.mr.create_model(
-            name=self.config.model_name,
-            metrics=metrics,
-            description=description
-        )
         
-    # Save model to the model directory
-        model_path = f"{model_dir}/model.joblib"
-        joblib.dump(model, model_path)
-        
-        # Create a new model version
-        self.mr.create_model_version(
-            name=self.config.model_name,
-            version=self.config.model_version,
-            metrics=metrics,
-            description=description
-        )
+        try:
+            # Create model registry entry
+            logger.info(f"Creating model registry entry for {self.config.model_name}")
+            model_registry_entry = self.mr.python.create_model(
+                name=self.config.model_name,
+                metrics=metrics,
+                description=description
+            )
+            
+            # Save model to the model directory first
+            model_path = f"artifacts/model_trainer/model.joblib"
+            os.makedirs(os.path.dirname(model_path), exist_ok=True)
+            logger.info(f"Saving model to local path: {model_path}")
+            joblib.dump(model, model_path)
+            
+            # Save model to Hopsworks registry
+            logger.info("Uploading model to Hopsworks registry")
+            model_registry_entry.save(model_path)
+            logger.info("Model successfully saved to Hopsworks registry")
+            
+        except Exception as e:
+            logger.error(f"Failed to save model to Hopsworks registry: {str(e)}")
+            raise e
+
     
     def load_model(self) -> Optional[Any]:
         """Load the latest model from the model registry."""
@@ -40,7 +50,7 @@ class HopsworksModelRegistry:
                 name=self.config.model_name,
                 version=self.config.model_version
             )
-            return joblib.load(f"{model.model_dir}/model.joblib")
+            return joblib.load(f"artifacts/model_trainer/model.joblib")
         except:
             return None
     
