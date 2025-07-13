@@ -21,7 +21,7 @@ if __name__ == '__main__':
         logger.info(f">>>>>> {STAGE_NAME} started <<<<<<")
         obj = ModelEvaluationPipeline()
         obj.main()
-        logger.info(f">>>>>> {STAGE_NAME} completed <<<<<<\n\nx==========x")
+        logger.info(f">>>>>> {STAGE_NAME} completed <<<<<<\n\n{'='*80}")
     except Exception as e:
         logger.exception(e)
         raise e
