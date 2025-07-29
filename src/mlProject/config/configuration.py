@@ -7,6 +7,7 @@ from mlProject.entity.config_entity import (DataIngestionConfig,
                                             ModelEvaluationConfig,
                                             ModelDeploymentConfig,
                                             PredictionConfig)
+from mlProject.hopsworks.config import MLflowBridgeConfig
 
 class ConfigurationManager:
     def __init__(
@@ -132,6 +133,7 @@ class ConfigurationManager:
 
     def get_model_deployment_config(self) -> ModelDeploymentConfig:
         config = self.config.model_deployment
+        mlflow_bridge_config = MLflowBridgeConfig()
 
         create_dirs([config.root_dir])
 
@@ -141,7 +143,8 @@ class ConfigurationManager:
             model_name=config.model_name,
             evaluation_experiment_name=config.evaluation_experiment_name,
             performance_threshold=config.performance_threshold,
-            deployment_log_file=config.deployment_log_file
+            deployment_log_file=config.deployment_log_file,
+            hopsworks_config=mlflow_bridge_config.hopsworks_config
         )
 
         return model_deployment_config

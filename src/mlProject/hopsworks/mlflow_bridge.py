@@ -9,7 +9,7 @@ import tempfile
 from dataclasses import dataclass
 from mlProject import logger
 from mlProject.hopsworks.model_registry import HopsworksModelRegistry
-from mlProject.hopsworks.config import MLflowBridgeConfig
+from mlProject.hopsworks.config import HopsworksConfig, MLflowBridgeConfig
 from mlProject.utils.common import save_json
 from pathlib import Path 
 
@@ -26,17 +26,19 @@ class MLflowBridge:
         self.mlflow_client = None
         self.hopsworks_registry = None
         self._setup_connections()
+        
     
     def _setup_connections(self):
         """Setup MLflow and Hopsworks connections."""
         try:
             # Setup MLflow
             mlflow.set_tracking_uri(self.config.mlflow_tracking_uri)
-            self.mlflow_client = MlflowClient(tracking_uri=self.config.mlflow_tracking_uri)
+            self.mlflow_client = MlflowClient(tracking_uri=self.config.mlflow_tracking_uri) 
             logger.info(f"MLflow client connected to: {self.config.mlflow_tracking_uri}")
             
             # Setup Hopsworks
-            self.hopsworks_registry = HopsworksModelRegistry(self.config.hopsworks_config)
+            hopsworks_config = self.config.hopsworks_config
+            self.hopsworks_registry = HopsworksModelRegistry(hopsworks_config)
             logger.info("Hopsworks registry connected successfully")
             
         except Exception as e:
@@ -231,7 +233,7 @@ class MLflowBridge:
             logger.info("Starting MLflow to Hopsworks sync and deployment...")
             
             # 1. Get latest model from MLflow
-            model_info = self.get_latest_mlflow_model()
+            model_info = self.get_latest_mlflow_model(self.config.evaluation_experiment_name)
             if not model_info:
                 logger.error("No model found in MLflow")
                 return False
@@ -293,12 +295,7 @@ from mlProject.hopsworks.config import HopsworksConfig
 
 if __name__ == "__main__":
     # Configuration
-    config = MLflowBridgeConfig(
-        mlflow_tracking_uri=os.getenv("MLFLOW_TRACKING_URI"),
-        model_name="VelibDemandLGBMRegressor", 
-        performance_threshold={"rmse": 3.0, "mae": 2.0, "r2": 0.85},
-        hopsworks_config=HopsworksConfig(),
-        )
+    config = MLflowBridgeConfig()
 
     # Create bridge and deploy
     bridge = MLflowBridge(config)

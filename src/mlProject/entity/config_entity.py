@@ -62,6 +62,7 @@ class ModelEvaluationConfig:
     mlflow_uri: str
 
 
+from mlProject.hopsworks.config import HopsworksConfig
 @dataclass(frozen=True)
 class ModelDeploymentConfig:
     root_dir: Path
@@ -70,6 +71,7 @@ class ModelDeploymentConfig:
     evaluation_experiment_name: str
     performance_threshold: dict
     deployment_log_file: Path
+    hopsworks_config: HopsworksConfig
 
 
 @dataclass(frozen=True)

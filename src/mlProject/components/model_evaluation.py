@@ -186,7 +186,12 @@ class ModelEvaluation:
                         logger.info("Model logged to local MLflow tracking")
                     
                     logger.info(f"Model evaluation completed. RMSE: {rmse:.4f}, MAE: {mae:.4f}, R2: {r2:.4f}")
-                    
+                
+                # Explicit MLflow cleanup
+                mlflow.end_run()
+                mlflow.set_tracking_uri(None)
+                logger.info("MLflow run ended and tracking URI reset for cleanup.")
+
             else:
                 # Fallback: evaluate without MLflow
                 logger.warning("MLflow not available, performing evaluation without tracking")

@@ -1,5 +1,5 @@
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from dotenv import load_dotenv
 from typing import Dict
 
@@ -31,7 +31,11 @@ class HopsworksConfig:
 @dataclass
 class MLflowBridgeConfig:
     """Configuration class for MLflow-Hopsworks bridge."""
-    mlflow_tracking_uri: str
-    model_name: str
-    performance_threshold: Dict[str, float]
-    hopsworks_config: HopsworksConfig
+    mlflow_tracking_uri: str = "https://dagshub.com/Abdelm4lek/End-to-end-ML-project.mlflow"
+    model_name: str = "Velib_demand_model"
+    performance_threshold: Dict[str, float] = field(default_factory=lambda: {
+        "rmse": 2.0,
+        "mae": 1.5,
+        "r2": 0.90
+    })
+    hopsworks_config: HopsworksConfig = field(default_factory=HopsworksConfig)
