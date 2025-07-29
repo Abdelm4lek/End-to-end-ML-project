@@ -32,4 +32,5 @@ if __name__ == "__main__":
         logger.info(f">>>>>> {STAGE_NAME} completed <<<<<<\n\n{'='*80}")
     except Exception as e:
         logger.exception(e)
-        raise e 
+        import sys
+        sys.exit(1) 

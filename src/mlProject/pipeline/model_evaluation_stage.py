@@ -23,5 +23,6 @@ if __name__ == '__main__':
         obj.main()
         logger.info(f">>>>>> {STAGE_NAME} completed <<<<<<\n\n{'='*80}")
     except Exception as e:
-        logger.exception(e)
-        raise e
+        logger.error(f"Error during model evaluation: {str(e)}")
+        import sys
+        sys.exit(1)

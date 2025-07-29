@@ -13,7 +13,6 @@ class ModelDeploymentPipeline:
     def main(self):
         config = ConfigurationManager()
         model_deployment_config = config.get_model_deployment_config()
-        
         # Initialize the bridge
         bridge = MLflowBridge(config=model_deployment_config)
         # Sync and deploy
@@ -29,4 +28,5 @@ if __name__ == '__main__':
         logger.info(f">>>>>> {STAGE_NAME} completed <<<<<<\n\n{'='*80}")
     except Exception as e:
         logger.exception(e)
-        raise e 
+        import sys
+        sys.exit(1) 
