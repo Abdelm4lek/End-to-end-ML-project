@@ -109,6 +109,33 @@ class VelibAPIClient:
             logger.error(f"Model reload failed: {str(e)}")
             return {"status": "error", "error": str(e)}
     
+    def get_historical_trends(self, days: int = 7, top_stations: int = 10) -> Dict:
+        """Get historical trends analysis from FastAPI"""
+        try:
+            response = self.session.get(
+                f"{self.base_url}/trends/historical",
+                params={"days": days, "top_stations": top_stations}
+            )
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.error(f"Historical trends request failed: {str(e)}")
+            return {"status": "error", "error": str(e)}
+    
+    def get_station_time_series(self, station_names: List[str], days: int = 7) -> Dict:
+        """Get station time series data from FastAPI"""
+        try:
+            response = self.session.post(
+                f"{self.base_url}/trends/stations",
+                params={"days": days},
+                json=station_names
+            )
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.error(f"Station time series request failed: {str(e)}")
+            return {"status": "error", "error": str(e)}
+    
     @st.cache_data(ttl=300)  # Cache for 5 minutes
     def fetch_station_info(_self):
         """Fetch station information (static data) - with fallback"""
@@ -320,35 +347,168 @@ def create_station_comparison_tool(merged_df: pd.DataFrame, predictions: Dict):
         fig.update_layout(xaxis_title='Station', yaxis_title='Utilization (%)')
         st.plotly_chart(fig, use_container_width=True)
 
-def create_historical_trends():
-    """Create historical trends analysis (placeholder for future implementation)"""
+def create_historical_trends(api_client):
+    """Create historical trends analysis using real Hopsworks data"""
     st.subheader("📈 Historical Trends Analysis")
     
-    st.info("""
-    **Coming Soon: Historical Trends**
+    # Time period selector
+    col1, col2 = st.columns(2)
+    with col1:
+        days = st.selectbox("Analysis Period", [3, 7, 14, 30], index=1, key="trends_days")
+    with col2:
+        top_stations = st.selectbox("Top Stations", [5, 10, 15, 20], index=1, key="trends_stations")
     
-    This section will include:
-    - 📊 Station demand patterns over time
-    - 🕐 Hourly/daily/weekly trends
-    - 🌡️ Weather correlation analysis
-    - 📅 Seasonal variations
-    - 🎯 Prediction accuracy metrics over time
+    # Get historical trends data
+    with st.spinner(f"Loading historical trends for {days} days..."):
+        trends_data = api_client.get_historical_trends(days=days, top_stations=top_stations)
     
-    *Integration with Hopsworks Feature Store for historical data is in progress.*
+    if "error" in trends_data:
+        st.error(f"⚠️ **Error loading historical data:** {trends_data['error']}")
+        st.info("💡 **Note:** Historical trends require data collection over time. Trends will become available as data accumulates.")
+        return
+    
+    # Data period information
+    data_period = trends_data.get("data_period", {})
+    st.info(f"""
+    📊 **Analysis Period:** {data_period.get('days', 'N/A')} days  
+    📅 **Data Range:** {data_period.get('start_date', 'N/A')[:10]} to {data_period.get('end_date', 'N/A')[:10]}  
+    🏢 **Stations:** {data_period.get('unique_stations', 'N/A')} active stations  
+    📈 **Records:** {data_period.get('total_records', 'N/A'):,} data points
     """)
     
-    # Sample chart to demonstrate future functionality
-    sample_dates = pd.date_range(start='2024-01-01', end='2024-01-07', freq='H')
-    sample_data = pd.DataFrame({
-        'datetime': sample_dates,
-        'demand': np.random.normal(15, 5, len(sample_dates)) + 
-                 10 * np.sin(2 * np.pi * sample_dates.hour / 24)  # Daily pattern
-    })
+    # 1. Hourly Patterns
+    st.subheader("🕐 Hourly Demand Patterns")
+    hourly_patterns = trends_data.get("hourly_patterns", {})
     
-    fig = px.line(sample_data, x='datetime', y='demand', 
-                  title='Sample: Station Demand Pattern (Demo Data)')
-    fig.update_layout(xaxis_title='Time', yaxis_title='Bike Demand')
-    st.plotly_chart(fig, use_container_width=True)
+    if hourly_patterns:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Hourly averages chart
+            hourly_data = pd.DataFrame([
+                {"Hour": hour, "Average Bikes": avg_bikes}
+                for hour, avg_bikes in hourly_patterns.get("hourly_averages", {}).items()
+            ])
+            
+            fig = px.line(hourly_data, x='Hour', y='Average Bikes', 
+                         title='Average Bike Availability by Hour',
+                         markers=True)
+            fig.update_layout(xaxis_title='Hour of Day', yaxis_title='Average Bikes Available')
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            # Peak/low hours metrics
+            st.metric("🔝 Peak Hour", f"{hourly_patterns.get('peak_hour', 'N/A')}:00")
+            st.metric("📉 Low Hour", f"{hourly_patterns.get('low_hour', 'N/A')}:00")
+            st.metric("🔥 Peak Demand", f"{hourly_patterns.get('peak_demand', 0):.1f} bikes")
+            st.metric("⬇️ Low Demand", f"{hourly_patterns.get('low_demand', 0):.1f} bikes")
+    
+    # 2. Daily Patterns
+    st.subheader("📅 Daily Patterns (Weekday vs Weekend)")
+    daily_patterns = trends_data.get("daily_patterns", {})
+    
+    if daily_patterns:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Daily averages chart
+            day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+            daily_data = pd.DataFrame([
+                {"Day": day_names[int(day)], "Average Bikes": avg_bikes}
+                for day, avg_bikes in daily_patterns.get("daily_averages", {}).items()
+            ])
+            
+            fig = px.bar(daily_data, x='Day', y='Average Bikes',
+                        title='Average Bike Availability by Day of Week')
+            fig.update_layout(xaxis_title='Day of Week', yaxis_title='Average Bikes Available')
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            st.metric("📊 Weekday Average", f"{daily_patterns.get('weekday_average', 0):.1f} bikes")
+            st.metric("🎉 Weekend Average", f"{daily_patterns.get('weekend_average', 0):.1f} bikes")
+            ratio = daily_patterns.get('weekend_vs_weekday_ratio', 0)
+            st.metric("📈 Weekend vs Weekday", f"{ratio:.2f}x", 
+                     delta=f"{(ratio-1)*100:+.1f}%" if ratio != 0 else None)
+    
+    # 3. Station Rankings
+    st.subheader("🏆 Top Stations Analysis")
+    station_rankings = trends_data.get("station_rankings", {})
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.write("**🚲 Highest Average Demand**")
+        top_demand = station_rankings.get("top_by_average_demand", {})
+        if top_demand.get("stations"):
+            demand_df = pd.DataFrame({
+                "Station": top_demand["stations"],
+                "Avg Bikes": top_demand["average_bikes"],
+                "Max Bikes": top_demand["max_bikes"]
+            })
+            st.dataframe(demand_df, use_container_width=True)
+    
+    with col2:
+        st.write("**📈 Most Variable Stations**")
+        top_variable = station_rankings.get("most_variable_stations", {})
+        if top_variable.get("stations"):
+            variable_df = pd.DataFrame({
+                "Station": top_variable["stations"],
+                "Variability": [f"{std:.1f}" for std in top_variable["std_dev"]],
+                "Avg Bikes": top_variable["average_bikes"]
+            })
+            st.dataframe(variable_df, use_container_width=True)
+    
+    # 4. System Utilization
+    st.subheader("🌐 System-Wide Utilization")
+    system_util = trends_data.get("system_utilization", {})
+    
+    if system_util:
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("📊 Average System Bikes", f"{system_util.get('average_system_bikes', 0):,.0f}")
+        with col2:
+            st.metric("🔝 Peak System Bikes", f"{system_util.get('peak_system_bikes', 0):,.0f}")
+        with col3:
+            st.metric("📉 Minimum System Bikes", f"{system_util.get('min_system_bikes', 0):,.0f}")
+        with col4:
+            stability = system_util.get('utilization_stability', 0)
+            st.metric("⚖️ System Stability", f"{stability:.2%}")
+        
+        # Daily trend chart
+        daily_trend = system_util.get("daily_trend", {})
+        if daily_trend.get("dates") and daily_trend.get("total_bikes"):
+            trend_df = pd.DataFrame({
+                "Date": daily_trend["dates"],
+                "Total Bikes": daily_trend["total_bikes"]
+            })
+            
+            fig = px.line(trend_df, x='Date', y='Total Bikes',
+                         title='System-Wide Daily Bike Availability Trend')
+            fig.update_layout(xaxis_title='Date', yaxis_title='Total Bikes Available')
+            st.plotly_chart(fig, use_container_width=True)
+    
+    # 5. Variability Analysis
+    st.subheader("📊 Demand Variability Analysis")
+    variability = trends_data.get("demand_variability", {})
+    
+    if variability:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("**🎯 Most Consistent Stations**")
+            consistent_stations = variability.get("most_consistent_stations", [])[:5]
+            for i, station in enumerate(consistent_stations, 1):
+                st.write(f"{i}. {station}")
+        
+        with col2:
+            st.write("**⚡ Most Variable Stations**")
+            variable_stations = variability.get("most_variable_stations", [])[:5]
+            for i, station in enumerate(variable_stations, 1):
+                st.write(f"{i}. {station}")
+        
+        system_variability = variability.get("system_wide_variability", 0)
+        st.metric("🌍 System-Wide Variability Score", f"{system_variability:.2f}")
 
 def create_prediction_map(merged_df: pd.DataFrame, predictions: Dict):
     """Create prediction map"""
@@ -593,7 +753,7 @@ def main():
     
     with tab5:
         # Historical trends
-        create_historical_trends()
+        create_historical_trends(api_client)
 
 if __name__ == "__main__":
     main()
