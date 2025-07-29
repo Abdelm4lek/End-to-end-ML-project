@@ -2,10 +2,10 @@
 Simplified FastAPI application for hourly batch Velib predictions.
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 import logging
 from datetime import datetime
 import uvicorn
@@ -55,74 +55,111 @@ class BatchPredictionResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
-    timestamp: datetime
     model_loaded: bool
     hopsworks_connected: bool
+    timestamp: datetime
+    model_info: Optional[Dict] = None
+    error: Optional[str] = None
 
-@app.get("/")
-async def root():
+class HistoricalTrendsResponse(BaseModel):
+    data_period: Dict
+    hourly_patterns: Dict
+    daily_patterns: Dict
+    station_rankings: Dict
+    demand_variability: Dict
+    system_utilization: Dict
+    status: str = "success"
+    error: Optional[str] = None
+
+class StationTimeSeriesResponse(BaseModel):
+    time_series: Dict
+    period: Dict
+    status: str = "success"
+    error: Optional[str] = None
+
+# API Endpoints
+
+@app.get("/", tags=["Info"])
+def root():
     """Root endpoint with API information."""
     return {
-        "title": "Velib bike hourly demand prediction API",
-        "description": "Batch predictions for all Velib stations in Ile-de-France",
+        "service": "Velib Hourly Prediction API",
         "version": "1.0.0",
+        "description": "Hourly batch predictions for all Velib stations in Paris",
         "endpoints": {
             "predictions": "/predict/all",
             "health": "/health",
+            "historical_trends": "/trends/historical",
+            "station_time_series": "/trends/stations",
+            "model_reload": "/model/reload",
             "docs": "/docs"
         }
     }
 
-@app.get("/health", response_model=HealthResponse)
+@app.get("/health", response_model=HealthResponse, tags=["Health"])
 async def health_check():
-    """Health check endpoint."""
+    """Comprehensive health check endpoint."""
     try:
         model_loaded = prediction_service.is_model_loaded()
         hopsworks_connected = await prediction_service.check_hopsworks_connection()
+        model_info = prediction_service.get_model_info()
+        
+        # Determine overall status
+        if model_loaded and hopsworks_connected:
+            status = "healthy"
+        elif model_loaded:
+            status = "degraded"  # Model loaded but Hopsworks unavailable
+        else:
+            status = "unhealthy"
         
         return HealthResponse(
-            status="healthy" if model_loaded else "degraded",
-            timestamp=datetime.now(),
+            status=status,
             model_loaded=model_loaded,
-            hopsworks_connected=hopsworks_connected
+            hopsworks_connected=hopsworks_connected,
+            timestamp=datetime.now(),
+            model_info=model_info
         )
+        
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")
-        raise HTTPException(status_code=500, detail="Health check failed")
+        return HealthResponse(
+            status="unhealthy",
+            model_loaded=False,
+            hopsworks_connected=False,
+            timestamp=datetime.now(),
+            error=str(e)
+        )
 
-@app.post("/predict/all", response_model=BatchPredictionResponse)
+@app.post("/predict/all", response_model=BatchPredictionResponse, tags=["Predictions"])
 async def predict_all_stations():
     """
     Get hourly predictions for all Velib stations.
     
-    This endpoint uses prediction pipeline to generate demand forecasts for the next hour for every station in the network.
+    This endpoint provides batch predictions for all operational stations
+    using the latest trained model and real-time station data.
     """
     try:
-        logger.info("Starting batch prediction for all stations")
+        logger.info("Received request for batch predictions")
         
-        # Use existing prediction service
+        if not prediction_service.is_model_loaded():
+            raise HTTPException(status_code=503, detail="Model not loaded. Check /health endpoint.")
+        
+        # Get predictions
         predictions = await prediction_service.predict_all_stations()
         
         if not predictions:
-            raise HTTPException(
-                status_code=503, 
-                detail="Could not generate predictions - insufficient data or model not available"
-            )
+            raise HTTPException(status_code=503, detail="Failed to generate predictions. Check model and data availability.")
         
-        # Get model information
-        model_info = prediction_service.get_model_info()
+        # Filter out None values and convert to float
+        valid_predictions = {k: float(v) for k, v in predictions.items() if v is not None}
         
-        response = BatchPredictionResponse(
-            predictions=predictions,
+        return BatchPredictionResponse(
+            predictions=valid_predictions,
             total_stations=len(predictions),
-            successful_predictions=len([p for p in predictions.values() if p is not None]),
+            successful_predictions=len(valid_predictions),
             timestamp=datetime.now(),
-            status="success",
-            model_info=model_info
+            model_info=prediction_service.get_model_info()
         )
-        
-        logger.info(f"Batch prediction completed: {response.successful_predictions}/{response.total_stations} stations")
-        return response
         
     except HTTPException:
         raise
@@ -130,20 +167,102 @@ async def predict_all_stations():
         logger.error(f"Error in batch prediction: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
-@app.post("/model/reload")
-async def reload_model():
-    """Reload the prediction model."""
+@app.get("/trends/historical", response_model=HistoricalTrendsResponse, tags=["Analytics"])
+async def get_historical_trends(
+    days: int = Query(7, ge=1, le=30, description="Number of days to analyze (1-30)"),
+    top_stations: int = Query(10, ge=5, le=50, description="Number of top stations to include (5-50)")
+):
+    """
+    Get historical trends analysis for bike demand patterns.
+    
+    This endpoint provides comprehensive analysis including:
+    - Hourly demand patterns across the day
+    - Daily patterns (weekday vs weekend)
+    - Top stations by demand and variability
+    - System-wide utilization trends
+    
+    Args:
+        days: Number of days to analyze (default: 7, max: 30)
+        top_stations: Number of top stations to include in rankings (default: 10)
+    """
     try:
+        logger.info(f"Received request for historical trends: {days} days, {top_stations} top stations")
+        
+        trends_data = await prediction_service.get_historical_trends(days=days, top_stations=top_stations)
+        
+        if "error" in trends_data:
+            raise HTTPException(status_code=503, detail=trends_data["error"])
+        
+        return HistoricalTrendsResponse(**trends_data)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting historical trends: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@app.post("/trends/stations", response_model=StationTimeSeriesResponse, tags=["Analytics"])
+async def get_station_time_series(
+    station_names: List[str],
+    days: int = Query(7, ge=1, le=30, description="Number of days to analyze (1-30)")
+):
+    """
+    Get detailed time series data for specific stations.
+    
+    This endpoint provides minute-by-minute historical data for selected stations,
+    including mechanical and electrical bike availability over time.
+    
+    Args:
+        station_names: List of station names to analyze
+        days: Number of days to retrieve (default: 7, max: 30)
+    """
+    try:
+        logger.info(f"Received request for station time series: {len(station_names)} stations, {days} days")
+        
+        if not station_names:
+            raise HTTPException(status_code=400, detail="At least one station name must be provided")
+        
+        if len(station_names) > 10:
+            raise HTTPException(status_code=400, detail="Maximum 10 stations allowed per request")
+        
+        time_series_data = await prediction_service.get_station_time_series(
+            station_names=station_names, 
+            days=days
+        )
+        
+        if "error" in time_series_data:
+            raise HTTPException(status_code=503, detail=time_series_data["error"])
+        
+        return StationTimeSeriesResponse(**time_series_data)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting station time series: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@app.post("/model/reload", tags=["Model Management"])
+async def reload_model():
+    """
+    Reload the prediction model from the model registry.
+    
+    This endpoint forces a reload of the model from Hopsworks Model Registry
+    or falls back to local artifacts if registry is unavailable.
+    """
+    try:
+        logger.info("Received request to reload model")
+        
         success = await prediction_service.reload_model()
         
         if success:
             return {
+                "status": "success",
                 "message": "Model reloaded successfully",
                 "timestamp": datetime.now(),
                 "model_info": prediction_service.get_model_info()
             }
         else:
-            raise HTTPException(status_code=503, detail="Failed to reload model")
+            raise HTTPException(status_code=503, detail="Failed to reload model. Check logs for details.")
             
     except HTTPException:
         raise
@@ -151,6 +270,7 @@ async def reload_model():
         logger.error(f"Error reloading model: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
+# Run the application
 if __name__ == "__main__":
     uvicorn.run(
         "main:app",
