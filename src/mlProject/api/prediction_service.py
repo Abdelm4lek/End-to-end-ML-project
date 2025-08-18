@@ -19,17 +19,33 @@ logger = logging.getLogger(__name__)
 
 class PredictionService:
     def __init__(self):
-        """Initialize the prediction service using existing components."""
-        self.config = HopsworksConfig()
-        self.model_registry = HopsworksModelRegistry(self.config)
-        self.feature_store = HopsworksFeatureStore(self.config)
+        """Initialize the prediction service using existing components.
+        If Hopsworks is unavailable or misconfigured, gracefully fall back to a local, offline mode so that the API can still start.
+        """
+        try:
+            self.config = HopsworksConfig()
+            self.model_registry = HopsworksModelRegistry(self.config)
+            self.feature_store = HopsworksFeatureStore(self.config)
+        except Exception as e:
+            # Any failure at this stage (missing env vars, network issues, library problems, etc.)
+            # would previously crash the whole application during import time.
+            # Instead, we log the problem and continue in a degraded "local only" mode.
+            logger.warning(f"Hopsworks integration disabled – falling back to local mode: {e}")
+            self.config = None
+            self.model_registry = None
+            self.feature_store = None
         
         self.predictor = None
         self.model_loaded_at = None
         self.model_version = None
         
-        # Try to load model on initialization
-        asyncio.create_task(self._initialize_predictor())
+        # Try to load model on initialization (run synchronously during startup)
+        try:
+            asyncio.run(self._initialize_predictor())
+        except RuntimeError:
+            # If we're already inside an event loop (rare, e.g. in notebooks), create a background task instead
+            loop = asyncio.get_event_loop()
+            loop.create_task(self._initialize_predictor())
     
     async def _initialize_predictor(self):
         """Initialize the predictor with model loading."""
@@ -96,6 +112,9 @@ class PredictionService:
         Returns:
             bool: True if Hopsworks is accessible, False otherwise
         """
+        # If Hopsworks is disabled, immediately report False
+        if not self.feature_store:
+            return False
         try:
             # Try to get feature group to test connection
             from ..hopsworks.feature_schema import get_feature_group_schema

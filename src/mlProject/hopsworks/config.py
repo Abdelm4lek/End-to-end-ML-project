@@ -17,7 +17,8 @@ class HopsworksConfig:
     feature_group_name: str = "Velib_data_features"
     feature_view_name: str = "Velib_data_feature_view"
     model_name: str = "Velib_demand_model"
-    model_version: str = "1.0"
+    # Hopsworks expects an integer version identifier
+    model_version: int = int(os.getenv("HOPSWORKS_MODEL_VERSION", "1"))
 
     def __post_init__(self):
         """Validate required configuration values."""
