@@ -1,0 +1,16 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+    ports: ["8000:8000"]
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: streamlit
+    environment:
+      - API_BASE_URL=http://api:8000
+    ports: ["8501:8501"]

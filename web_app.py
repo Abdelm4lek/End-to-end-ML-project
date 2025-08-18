@@ -12,6 +12,7 @@ import logging
 from typing import Dict, Optional, List
 import subprocess
 import sys
+import os
 
 
 
@@ -28,7 +29,9 @@ st.set_page_config(
 )
 
 # Configuration
-API_BASE_URL = "http://localhost:8000"
+# Default to localhost when running outside Docker; inside Docker we pass-
+# API_BASE_URL=http://api:8000 via docker-compose so the containers can talk.
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 REFRESH_INTERVAL = st.sidebar.selectbox("Auto-refresh interval (seconds)", [30, 60, 120, 300], index=1)
 
 def start_fastapi_if_needed():
@@ -190,11 +193,14 @@ def display_api_status():
     else:
         st.sidebar.error("❌ API client: Unhealthy")
         st.sidebar.error(f"Error: {health.get('error', 'Unknown error')}")
-        
-        # Auto-start button
-        if st.sidebar.button("🚀 Start API client"):
-            start_fastapi_if_needed()
-            st.rerun()
+
+        # Only allow auto-start when targeting a local host API
+        if any(h in API_BASE_URL for h in ["localhost", "127.0.0.1"]):
+            if st.sidebar.button("🚀 Start API client"):
+                start_fastapi_if_needed()
+                st.rerun()
+        else:
+            st.sidebar.info("API is managed by Docker Compose (service 'api'). No local auto-start.")
         
         # Model reload button if API is accessible
         if st.sidebar.button("🔄 Reload Model"):
@@ -546,7 +552,7 @@ def create_prediction_map(merged_df: pd.DataFrame, predictions: Dict):
     <extra></extra>
     """
     
-    fig = px.scatter_mapbox(
+    fig = px.scatter_map(
         prediction_df,
         lat='lat',
         lon='lon',
@@ -555,18 +561,17 @@ def create_prediction_map(merged_df: pd.DataFrame, predictions: Dict):
         custom_data=['name', 'num_bikes_available', 'predicted_bikes', 
                     'prediction_diff', 'num_docks_available', 'capacity'],
         zoom=10,
-        mapbox_style="carto-positron",
+        map_style="carto-positron",
         title="Predicted Bike Availability",
         color_continuous_scale="Viridis"
     )
-    
     fig.update_traces(hovertemplate=hover_template)
     st.plotly_chart(fig, use_container_width=True)
     
     # Prediction changes map
     st.subheader("📊 Predicted Changes Map")
     
-    fig2 = px.scatter_mapbox(
+    fig2 = px.scatter_map(
         prediction_df,
         lat='lat',
         lon='lon',
@@ -575,7 +580,7 @@ def create_prediction_map(merged_df: pd.DataFrame, predictions: Dict):
         custom_data=['name', 'num_bikes_available', 'predicted_bikes', 
                     'prediction_diff', 'num_docks_available', 'capacity'],
         zoom=10,
-        mapbox_style="carto-positron",
+        map_style="carto-positron",
         title="Predicted Changes (+: increase, -: decrease)",
         color_continuous_scale="RdBu",
         color_continuous_midpoint=0
@@ -593,10 +598,11 @@ def main():
     **ML Predictions** dashboard for Velib bike-sharing demand.
     """)
     
-    # Auto-start FastAPI if needed (only on first load)
+    # Auto-start FastAPI if needed (only on first load) for local dev only
     if 'fastapi_checked' not in st.session_state:
         st.session_state.fastapi_checked = True
-        start_fastapi_if_needed()
+        if any(h in API_BASE_URL for h in ["localhost", "127.0.0.1"]):
+            start_fastapi_if_needed()
     
     # Display API status in sidebar
     display_api_status()
@@ -675,7 +681,7 @@ def main():
         <extra></extra>
         """
         
-        fig = px.scatter_mapbox(
+        fig = px.scatter_map(
             merged_df,
             lat='lat',
             lon='lon',
@@ -683,7 +689,7 @@ def main():
             size='num_bikes_available',
             custom_data=['name', 'num_bikes_available', 'num_docks_available', 'capacity'],
             zoom=10,
-            mapbox_style="carto-positron",
+            map_style="carto-positron",
             color_continuous_scale="Viridis"
         )
         
