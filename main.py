@@ -1,14 +1,14 @@
 import time
 import gc
 import sys
-from mlProject import logger
-from mlProject.pipeline.data_ingestion_stage import DataIngestionPipeline
-from mlProject.pipeline.data_validation_stage import DataValidationPipeline
-from mlProject.pipeline.data_transformation_stage import DataTransformationPipeline
-from mlProject.pipeline.model_training_stage import ModelTrainerPipeline
-from mlProject.pipeline.model_evaluation_stage import ModelEvaluationPipeline
-from mlProject.pipeline.model_deployment_stage import ModelDeploymentPipeline
-from mlProject.pipeline.prediction_stage import PredictionPipeline
+from src.mlProject import logger
+from src.mlProject.pipeline.data_ingestion_stage import DataIngestionPipeline
+from src.mlProject.pipeline.data_validation_stage import DataValidationPipeline
+from src.mlProject.pipeline.data_transformation_stage import DataTransformationPipeline
+from src.mlProject.pipeline.model_training_stage import ModelTrainerPipeline
+from src.mlProject.pipeline.model_evaluation_stage import ModelEvaluationPipeline
+from src.mlProject.pipeline.model_deployment_stage import ModelDeploymentPipeline
+from src.mlProject.pipeline.prediction_stage import PredictionPipeline
 from multiprocessing import Process
 
 if __name__ == "__main__":

@@ -2,10 +2,10 @@ import os
 import urllib.request as request
 import pandas as pd
 from datetime import datetime, timedelta
-from mlProject import logger
-from mlProject.utils.common import get_size
+from src.mlProject import logger
+from src.mlProject.utils.common import get_size
 from pathlib import Path
-from mlProject.entity.config_entity import (DataIngestionConfig)
+from src.mlProject.entity.config_entity import (DataIngestionConfig)
 
 
 class DataIngestion:
@@ -36,9 +36,9 @@ class DataIngestion:
     def _fetch_from_hopsworks(self):
         """Fetch fresh data from Hopsworks Feature Store"""
         try:
-            from mlProject.hopsworks.config import HopsworksConfig
-            from mlProject.hopsworks.feature_store import HopsworksFeatureStore
-            from mlProject.hopsworks.feature_schema import get_feature_group_schema
+            from src.mlProject.hopsworks.config import HopsworksConfig
+            from src.mlProject.hopsworks.feature_store import HopsworksFeatureStore
+            from src.mlProject.hopsworks.feature_schema import get_feature_group_schema
             
             logger.info("Connecting to Hopsworks Feature Store")
             hopsworks_config = HopsworksConfig()

@@ -2,7 +2,7 @@ import os
 import yaml
 import json
 import joblib
-from mlProject import logger
+from src.mlProject import logger
 from ensure import ensure_annotations
 from box.exceptions import BoxValueError
 from box import ConfigBox

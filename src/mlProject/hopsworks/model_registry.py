@@ -1,9 +1,9 @@
 import os
-from mlProject import logger
+from src.mlProject import logger
 import hopsworks
 import joblib
 from typing import Optional, Any
-from mlProject.hopsworks.config import HopsworksConfig
+from src.mlProject.hopsworks.config import HopsworksConfig
 
 class HopsworksModelRegistry:
     def __init__(self, config: HopsworksConfig):
@@ -44,14 +44,28 @@ class HopsworksModelRegistry:
 
     
     def load_model(self) -> Optional[Any]:
-        """Load the latest model from the model registry."""
+        """Download and load the latest model from the Hopsworks registry."""
         try:
-            model = self.mr.get_model(
-                name=self.config.model_name,
-                version=self.config.model_version
-            )
-            return joblib.load(f"artifacts/model_trainer/model.joblib")
-        except:
+            # Hopsworks API expects an integer version; ensure we pass one
+            try:
+                version_int = int(self.config.model_version) if self.config.model_version else None
+            except ValueError:
+                logger.warning(f"Invalid model_version '{self.config.model_version}', will fetch latest version instead")
+                version_int = None
+
+            if version_int is not None:
+                model_obj = self.mr.get_model(name=self.config.model_name, version=version_int)
+            else:
+                # No version provided or invalid – fetch latest
+                model_obj = self.mr.get_model(name=self.config.model_name)
+
+            # Download the model artifacts to a temporary local directory
+            local_dir = model_obj.download()
+            model_path = os.path.join(local_dir, "model.joblib")
+            logger.info(f"Loaded model artifact from: {model_path}")
+            return joblib.load(model_path)
+        except Exception as e:
+            logger.error(f"Failed to load model from Hopsworks registry: {e}")
             return None
     
     def get_model_metrics(self) -> Optional[dict]:

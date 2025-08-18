@@ -1,8 +1,8 @@
 import os
-from mlProject import logger
+from src.mlProject import logger
 import polars as pl
 from sklearn.model_selection import train_test_split
-from mlProject.entity.config_entity import DataTransformationConfig
+from src.mlProject.entity.config_entity import DataTransformationConfig
 
 
 

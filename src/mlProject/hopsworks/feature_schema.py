@@ -1,5 +1,5 @@
 from typing import List, Dict
-from mlProject.hopsworks.feature_store import HopsworksFeatureStore
+from src.mlProject.hopsworks.feature_store import HopsworksFeatureStore
 
 VELIB_FEATURE_SCHEMA = {
     "datetime": "timestamp",

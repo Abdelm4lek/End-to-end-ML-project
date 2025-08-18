@@ -1,6 +1,6 @@
 import os
-from mlProject.entity.config_entity import ModelTrainerConfig
-from mlProject import logger
+from src.mlProject.entity.config_entity import ModelTrainerConfig
+from src.mlProject import logger
 import polars as pl
 import lightgbm as lgb
 import joblib
@@ -118,13 +118,13 @@ class ModelTrainer:
                         callbacks=[lgb.early_stopping(10), lgb.log_evaluation(period=50)])
         
         # Log model to MLflow with signature and input example
-        # Get a sample from training data for input example
-        input_example = X_train.head(5)  # Use first 5 rows as example
+        # Get a sample from training data for input example and ensure float64 types
+        input_example = X_train.head(5).astype('float64')  # Convert to float64 to handle missing values
         mlflow.lightgbm.log_model(
             lgbm, 
             "model", 
             input_example=input_example,
-            signature=mlflow.models.infer_signature(X_train, lgbm.predict(X_train[:100]))
+            signature=mlflow.models.infer_signature(X_train.astype('float64'), lgbm.predict(X_train[:100]))
         )
         
         # Save model locally as well

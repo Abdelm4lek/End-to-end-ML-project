@@ -1,13 +1,13 @@
-from mlProject.constants import *
-from mlProject.utils.common import read_yaml, create_dirs
-from mlProject.entity.config_entity import (DataIngestionConfig,
+from src.mlProject.constants import *
+from src.mlProject.utils.common import read_yaml, create_dirs
+from src.mlProject.entity.config_entity import (DataIngestionConfig,
                                             DataValidationConfig,
                                             DataTransformationConfig,
                                             ModelTrainerConfig,
                                             ModelEvaluationConfig,
                                             ModelDeploymentConfig,
                                             PredictionConfig)
-from mlProject.hopsworks.config import MLflowBridgeConfig
+from src.mlProject.hopsworks.config import MLflowBridgeConfig
 
 class ConfigurationManager:
     def __init__(

@@ -7,10 +7,10 @@ import os
 from typing import Dict, Optional
 from datetime import datetime, timedelta
 from pathlib import Path
-from mlProject.hopsworks.feature_store import HopsworksFeatureStore
-from mlProject.hopsworks.config import HopsworksConfig
-from mlProject.hopsworks.feature_schema import get_feature_group_schema
-from mlProject.utils.common import create_dirs
+from src.mlProject.hopsworks.feature_store import HopsworksFeatureStore
+from src.mlProject.hopsworks.config import HopsworksConfig
+from src.mlProject.hopsworks.feature_schema import get_feature_group_schema
+from src.mlProject.utils.common import create_dirs
 
 logger = logging.getLogger(__name__)
 

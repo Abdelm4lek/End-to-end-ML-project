@@ -62,7 +62,7 @@ class ModelEvaluationConfig:
     mlflow_uri: str
 
 
-from mlProject.hopsworks.config import HopsworksConfig
+from src.mlProject.hopsworks.config import HopsworksConfig
 @dataclass(frozen=True)
 class ModelDeploymentConfig:
     root_dir: Path

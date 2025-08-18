@@ -1,6 +1,6 @@
-from mlProject.config.configuration import ConfigurationManager
-from mlProject.hopsworks.mlflow_bridge import MLflowBridge
-from mlProject import logger
+from src.mlProject.config.configuration import ConfigurationManager
+from src.mlProject.hopsworks.mlflow_bridge import MLflowBridge
+from src.mlProject import logger
 
 
 

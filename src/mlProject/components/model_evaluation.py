@@ -9,10 +9,10 @@ import mlflow
 import mlflow.sklearn
 import mlflow.lightgbm
 import dotenv
-from mlProject.config.configuration import ConfigurationManager
-from mlProject.entity.config_entity import ModelEvaluationConfig
-from mlProject.utils.common import save_json
-from mlProject import logger
+from src.mlProject.config.configuration import ConfigurationManager
+from src.mlProject.entity.config_entity import ModelEvaluationConfig
+from src.mlProject.utils.common import save_json
+from src.mlProject import logger
 
 
 
@@ -168,8 +168,8 @@ class ModelEvaluation:
                                 model, 
                                 "model", 
                                 registered_model_name="VelibDemandLGBMRegressor",
-                                input_example=test_x.head(5),
-                                signature=mlflow.models.infer_signature(test_x, predicted_y[:100])
+                                input_example=test_x.head(5).astype('float64'),
+                                signature=mlflow.models.infer_signature(test_x.astype('float64'), predicted_y[:100])
                             )
                             logger.info("Model registered in remote MLflow registry")
                         except Exception as e:
@@ -180,8 +180,8 @@ class ModelEvaluation:
                         mlflow.lightgbm.log_model(
                             model, 
                             "model",
-                            input_example=test_x.head(5),
-                            signature=mlflow.models.infer_signature(test_x, predicted_y[:100])
+                            input_example=test_x.head(5).astype('float64'),
+                            signature=mlflow.models.infer_signature(test_x.astype('float64'), predicted_y[:100])
                         )
                         logger.info("Model logged to local MLflow tracking")
                     

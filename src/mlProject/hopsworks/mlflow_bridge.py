@@ -7,10 +7,10 @@ import joblib
 import json
 import tempfile
 from dataclasses import dataclass
-from mlProject import logger
-from mlProject.hopsworks.model_registry import HopsworksModelRegistry
-from mlProject.hopsworks.config import HopsworksConfig, MLflowBridgeConfig
-from mlProject.utils.common import save_json
+from src.mlProject import logger
+from src.mlProject.hopsworks.model_registry import HopsworksModelRegistry
+from src.mlProject.hopsworks.config import HopsworksConfig, MLflowBridgeConfig
+from src.mlProject.utils.common import save_json
 from pathlib import Path 
 
 
@@ -291,7 +291,7 @@ class MLflowBridge:
         
 
 
-from mlProject.hopsworks.config import HopsworksConfig
+from src.mlProject.hopsworks.config import HopsworksConfig
 
 if __name__ == "__main__":
     # Configuration

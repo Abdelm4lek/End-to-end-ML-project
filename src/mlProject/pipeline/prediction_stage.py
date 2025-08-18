@@ -1,6 +1,6 @@
-from mlProject.config.configuration import ConfigurationManager
-from mlProject.components.prediction import Predictor
-from mlProject import logger
+from src.mlProject.config.configuration import ConfigurationManager
+from src.mlProject.components.prediction import Predictor
+from src.mlProject import logger
 
 
 

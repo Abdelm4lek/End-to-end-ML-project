@@ -6,9 +6,9 @@ from datetime import datetime
 import logging
 import json
 from typing import Optional, Tuple
-from mlProject.hopsworks.feature_store import HopsworksFeatureStore
-from mlProject.hopsworks.feature_schema import get_feature_group_schema
-from mlProject.hopsworks.config import HopsworksConfig
+from src.mlProject.hopsworks.feature_store import HopsworksFeatureStore
+from src.mlProject.hopsworks.feature_schema import get_feature_group_schema
+from src.mlProject.hopsworks.config import HopsworksConfig
 import pytz
 
 # Configure logging
