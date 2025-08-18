@@ -8,8 +8,8 @@ import sys
 from pathlib import Path
 
 # Add project root to Python path
-project_root = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
+src_root = Path(__file__).resolve().parents[2]  # /app/src
+sys.path.insert(0, str(src_root))
 
 def run_api(host: str = "0.0.0.0", port: int = 8000, reload: bool = True):
     """
