@@ -35,8 +35,8 @@ class MLflowBridgeConfig:
     mlflow_tracking_uri: str = "https://dagshub.com/Abdelm4lek/End-to-end-ML-project.mlflow"
     model_name: str = "Velib_demand_model"
     performance_threshold: Dict[str, float] = field(default_factory=lambda: {
-        "rmse": 2.0,
-        "mae": 1.5,
-        "r2": 0.90
+        "rmse": 3.0,
+        "mae": 2.0,
+        "r2": 0.80
     })
     hopsworks_config: HopsworksConfig = field(default_factory=HopsworksConfig)

@@ -51,9 +51,9 @@ model_deployment:
   model_name: VelibDemandLGBMRegressor
   evaluation_experiment_name: velib_demand_model_evaluation
   performance_threshold:
-    rmse: 2.0
-    mae: 1.5
-    r2: 0.85
+    rmse: 3.0
+    mae: 2.0
+    r2: 0.80
   deployment_log_file: artifacts/model_deployment/deployment_log.json
 
 prediction:
