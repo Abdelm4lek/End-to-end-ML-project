@@ -1,0 +1,9 @@
+{$APP_HOST} {
+  reverse_proxy web:8501
+}
+
+{$API_HOST} {
+  reverse_proxy api:8000
+}
+
+

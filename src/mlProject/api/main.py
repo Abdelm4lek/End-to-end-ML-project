@@ -32,10 +32,20 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# Configure CORS
+# Configure CORS (restrict in production via env var)
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS") or os.getenv("WEB_ORIGIN")
+if allowed_origins_env:
+    allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
+else:
+    # Sensible defaults for local development
+    allowed_origins = [
+        "http://localhost:8501",
+        "http://127.0.0.1:8501"
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
